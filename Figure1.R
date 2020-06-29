@@ -6,8 +6,8 @@ library(RColorBrewer)
 golden.ratio <- 1/1.618
 grey <- "#333333"
 light.grey <- "#AAAAAA"
-colors.MOI = brewer.pal(5, 'YlGnBu')[2:5]
-colors.Cell.line = c("H522" = "#ff7f00",
+colors.MOI <- brewer.pal(5, 'YlGnBu')[2:5]
+colors.Cell.line <- c("H522" = "#ff7f00",
                      "Vero E6" = "#984ea3", 
                      "Detroit562" = light.grey, 
                      "SCC25" = light.grey,
@@ -18,6 +18,14 @@ colors.Cell.line = c("H522" = "#ff7f00",
                      "HCC827" = light.grey,
                      "PC-9" = light.grey,
                      "A427" = light.grey)
+theme.basic <- (theme_minimal() 
+                + theme(axis.line = element_line(colour = grey, size = 1, linetype = "solid"), 
+                        panel.grid = element_blank(),
+                        axis.ticks = element_line(size = 0.5, colour = grey),
+                        axis.ticks.length = unit(.25, "cm"),
+                        aspect.ratio = golden.ratio,
+                        plot.title = element_text(size=11, hjust=0.5))
+                )
 
 
 
@@ -97,14 +105,7 @@ plotViralLoadCellLines <- function(data, title, min.y) {
         
         + ggtitle(title)
         
-        + theme_minimal()
-        + theme(axis.line = element_line(colour = grey, 
-                                         size = 1, linetype = "solid"),
-                panel.grid = element_blank(),
-                axis.ticks = element_line(size = 0.5, colour = grey),
-                axis.ticks.length = unit(.25, "cm"),
-                aspect.ratio = golden.ratio,
-                plot.title = element_text(size=11, hjust=0.5))
+        + theme.basic
         + theme(legend.position = "none")
   )
 }
@@ -142,14 +143,7 @@ plotViralLoad <- function(data, title, y.axis.label) {
         
         + ggtitle(title)
         
-        + theme_minimal()
-        + theme(axis.line = element_line(colour = grey, 
-                                         size = 1, linetype = "solid"),
-                panel.grid = element_blank(),
-                axis.ticks = element_line(size = 0.5, colour = grey),
-                axis.ticks.length = unit(.25, "cm"),
-                aspect.ratio = golden.ratio,
-                plot.title = element_text(size=11, hjust=0.5))
+        + theme.basic
         + theme(legend.position = "none")
   )
 }
@@ -182,14 +176,7 @@ plotFACS <- function(data) {
         
         + ggtitle("H522 - FACS")
         
-        + theme_minimal()
-        + theme(axis.line = element_line(colour = grey, 
-                                         size = 1, linetype = "solid"),
-                panel.grid = element_blank(),
-                axis.ticks = element_line(size = 0.5, colour = grey),
-                axis.ticks.length = unit(.25, "cm"),
-                aspect.ratio = golden.ratio,
-                plot.title = element_text(size=11, hjust=0.5))
+        + theme.basic
         + theme(legend.position = "none")
   )
 }
