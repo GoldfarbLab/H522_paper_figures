@@ -1,7 +1,7 @@
 library(tidyverse)
 
 #read file 
-#path <- "/Users/riajasuja/Box/CellBio-GoldfarbLab/Users/Ria Jasuja/proteinGroups1.txt" 
+#path <- "/Users/riajasuja/Box/CellBio-GoldfarbLab/Users/Ria Jasuja/SARS CoV2 Paper Data/proteinGroups.txt" 
 
 #another function that reads Protein Groups file : readProteinGroups(file, meta, measure.cols = NULL, data.cols = proteinColumns)
 
