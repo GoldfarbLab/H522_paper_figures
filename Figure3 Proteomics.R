@@ -1,12 +1,24 @@
 library(tidyverse)
 
 #read file 
-#path <- "/Users/riajasuja/Box/CellBio-GoldfarbLab/Users/Ria Jasuja/SARS CoV2 Paper Data/proteinGroups.txt" 
+#path <- "/Users/riajasuja/Box/CellBio-GoldfarbLab/Users/Ria Jasuja/proteinGroups.txt" 
 
 #another function that reads Protein Groups file : readProteinGroups(file, meta, measure.cols = NULL, data.cols = proteinColumns)
 
 data <- read_tsv(path)
 design <- read_csv("data/Experimental Design Proteomics.csv")
+
+golden.ratio <- 1/1.618
+grey <- "#333333"
+light.grey <- "#AAAAAA"
+theme.basic <- (theme_minimal() 
+                + theme(axis.line = element_line(colour = grey, size = 1, linetype = "solid"), 
+                        panel.grid = element_blank(),
+                        axis.ticks = element_line(size = 0.5, colour = grey),
+                        axis.ticks.length = unit(.25, "cm"),
+                        aspect.ratio = golden.ratio,
+                        plot.title = element_text(size=11, hjust=0.5))
+)
 #filter data for contaminants, cols ES (Only ID'd by site) ET (Reverse)  EU (Potential Contaminant) and K (at least 1 unique peptide)
 
 filtered.data <- filter(data, is.na(data$"Only identified by site"), is.na(data$"Reverse"), is.na(data$"Potential contaminant"), data$"Razor + unique peptides" > 1)
@@ -31,8 +43,8 @@ valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) == 3)
 #PCA plot: figure out what Reporter Intensity Cols correspond to which samples 
 plotPCA <- function(data, design)
 {
-  data <- select(data, -c(1,12,23))
-  design <- design[-c(1,12,23),]
+  data <- select(data, -c(1,10,11,12,21,22,23,32,33)) #removes TMT1 (light standard) and TMT11 (heavy standard) (AND BRIDGE)
+  design <- design[-c(1,10,11,12,21,22,23,32,33),]
   data.t <- as.data.frame(t(data))
   pca <- prcomp(data.t)
   eigen <- pca$sdev^2
@@ -45,7 +57,7 @@ plotPCA <- function(data, design)
   max.x <- max(plotting.data$PC1)
   x.range <- max.x - min.x
   
-  p <- (ggplot(plotting.data, aes(x=PC1, y=PC2, shape=as.factor(Replicate), color=as.factor(Replicate), label=Name)) 
+  p <- (ggplot(plotting.data, aes(x=PC1, y=PC2, shape=as.factor(Replicate), color=Condition, label=Condition)) 
         + geom_point(size=3)
         + geom_text(size=3, nudge_y = y.range/20)
         
@@ -54,10 +66,13 @@ plotPCA <- function(data, design)
         + xlab(paste("PC1 (", variance[1], "% explained variance)", sep=""))
         + ylab(paste("PC2 (", variance[2], "% explained variance)", sep=""))
         + ggtitle("Principal Component Analysis (PCA) Proteomics")
+        
+        + theme.basic
   )
   print(p)
 }
 plotPCA(select(valid.data, reporter.intensities), design)
+
 #rename and reorganize table to make sense 
 #1- figure out how to rename reporter intensities to sample names (probably use Grep?)
 #2- reorganize cols to combine time points 
