@@ -1,9 +1,8 @@
+library(timecourse)
 library(tidyverse)
 
 #read file 
-#path <- "/Users/riajasuja/Box/CellBio-GoldfarbLab/Users/Ria Jasuja/proteinGroups.txt" 
-
-#another function that reads Protein Groups file : readProteinGroups(file, meta, measure.cols = NULL, data.cols = proteinColumns)
+#path <- "/Users/riajasuja/Box/CellBio-GoldfarbLab/Users/Ria Jasuja/proteinGroups1.txt" 
 
 data <- read_tsv(path)
 design <- read_csv("data/Experimental Design Proteomics.csv")
@@ -25,8 +24,8 @@ filtered.data <- filter(data, is.na(data$"Only identified by site"), is.na(data$
 
 #condense data to just the useful columns, ie Gene Names and Reporter Intensities 
 
-reporter.intensities <- grep("Reporter intensity corrected", colnames(data), ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE, value = TRUE)
-filtered.data <- select(filtered.data, "Protein names", "Gene names", reporter.intensities)
+reporter.intensities <- grep("Reporter intensity corrected", colnames(filtered.data), ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE, value = TRUE)
+filtered.data <- dplyr::select(filtered.data, "Protein names", "Gene names", reporter.intensities)
 
 #At least 1 value for each Rep (aka not all 0s)
 #filter data into Reps 
@@ -34,16 +33,45 @@ intensities.rep1 <- grep("Rep 1", colnames(filtered.data), ignore.case = FALSE, 
 intensities.rep2 <- grep("Rep 2", colnames(filtered.data), ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE, value = TRUE)
 intensities.rep3 <- grep("Rep 3", colnames(filtered.data), ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE, value = TRUE)
 #At least 1 nonzero value / Rep (idea: sum each row for each rep and if its more than 0 its good) 
-rep1.valid <- rowSums(select(filtered.data, intensities.rep1) > 0) > 0
-rep2.valid <- rowSums(select(filtered.data, intensities.rep2) > 0) > 0
-rep3.valid <- rowSums(select(filtered.data, intensities.rep3) > 0) > 0
+rep1.valid <- rowSums(dplyr::select(filtered.data, all_of(intensities.rep1)) > 0) > 0
+rep2.valid <- rowSums(dplyr::select(filtered.data, all_of(intensities.rep2)) > 0) > 0
+rep3.valid <- rowSums(dplyr::select(filtered.data, all_of(intensities.rep3)) > 0) > 0
 
 valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) == 3)
+
+#NORMALIZE DATA 
+#1- take column sums of quantifications from each REP 
+#2- divide sums by max of those sums 
+#3- correct the data by dividing each column by its percent
+#4- Then divide all rows by the ref channel
+#5- Then take the log2 of the dataset (????)
+#6- Combine back into one table with gene names
+#REP1
+normalization.data.rep1 <- dplyr::select(valid.data, intensities.rep1)
+normalization.factor.rep1 <- colSums(normalization.data.rep1)
+normalization.factor.rep1 <- normalization.factor.rep1/max(normalization.factor.rep1)
+normalization.data.rep1 <- normalization.data.rep1/normalization.factor.rep1
+normalized.data.rep1 <- sweep(normalization.data.rep1, 1, normalization.data.rep1[, 10], "/")
+
+#REP2
+normalization.data.rep2 <- dplyr::select(valid.data, intensities.rep2)
+normalization.factor.rep2 <- colSums(normalization.data.rep2)
+normalization.factor.rep2 <- normalization.factor.rep2/max(normalization.factor.rep2)
+normalization.data.rep2 <- normalization.data.rep2/normalization.factor.rep2
+normalized.data.rep2 <- sweep(normalization.data.rep2, 1, normalization.data.rep2[, 10], "/")
+
+#REP3
+normalization.data.rep3 <- dplyr::select(valid.data, intensities.rep3)
+normalization.factor.rep3 <- colSums(normalization.data.rep3)
+normalization.factor.rep3 <- normalization.factor.rep3/max(normalization.factor.rep3)
+normalization.data.rep3 <- normalization.data.rep3/normalization.factor.rep3
+normalized.data.rep3 <- sweep(normalization.data.rep3, 1, normalization.data.rep3[, 10], "/")
+
 
 #PCA plot: figure out what Reporter Intensity Cols correspond to which samples 
 plotPCA <- function(data, design)
 {
-  data <- select(data, -c(1,10,11,12,21,22,23,32,33)) #removes TMT1 (light standard) and TMT11 (heavy standard) (AND BRIDGE)
+  data <- select(data, -c(1,10,11,12,21,22,23,32,33)) #removes TMT1 (light standard) and TMT11 (heavy standard) and TMT 10 (bridge)
   design <- design[-c(1,10,11,12,21,22,23,32,33),]
   data.t <- as.data.frame(t(data))
   pca <- prcomp(data.t)
@@ -57,7 +85,7 @@ plotPCA <- function(data, design)
   max.x <- max(plotting.data$PC1)
   x.range <- max.x - min.x
   
-  p <- (ggplot(plotting.data, aes(x=PC1, y=PC2, shape=as.factor(Replicate), color=Condition, label=Condition)) 
+  p <- (ggplot(plotting.data, aes(x=PC1, y=PC2, shape=as.factor(Infected), color=Time, label=Time)) 
         + geom_point(size=3)
         + geom_text(size=3, nudge_y = y.range/20)
         
@@ -73,10 +101,10 @@ plotPCA <- function(data, design)
 }
 plotPCA(select(valid.data, reporter.intensities), design)
 
-#rename and reorganize table to make sense 
-#1- figure out how to rename reporter intensities to sample names (probably use Grep?)
-#2- reorganize cols to combine time points 
+#RUNNNIG TIMECOURSE 
+#Q- do we want this change in normalization to be done before the pca? 
 
-# combine time points 
+#Re-Format Data 
 
-#run time course? 
+
+
