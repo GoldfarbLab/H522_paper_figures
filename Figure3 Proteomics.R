@@ -44,8 +44,11 @@ valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) == 3)
 #2- divide sums by max of those sums 
 #3- correct the data by dividing each column by its percent
 #4- Then divide all rows by the ref channel
+#5- Combine back into one table
 #5- Then take the log2 of the dataset (????)
-#6- Combine back into one table with gene names
+#6- Combine back into one table with gene names and protein names 
+geneprotein.names <- dplyr::select(valid.data, "Gene names", "Protein names")
+
 #REP1
 normalization.data.rep1 <- dplyr::select(valid.data, intensities.rep1)
 normalization.factor.rep1 <- colSums(normalization.data.rep1)
@@ -67,11 +70,15 @@ normalization.factor.rep3 <- normalization.factor.rep3/max(normalization.factor.
 normalization.data.rep3 <- normalization.data.rep3/normalization.factor.rep3
 normalized.data.rep3 <- sweep(normalization.data.rep3, 1, normalization.data.rep3[, 10], "/")
 
+normalized.data <- cbind(normalized.data.rep1, normalized.data.rep2, normalized.data.rep3)
+normalized.data <- log2(normalized.data)
+normalized.data <- cbind(geneprotein.names, normalized.data)
+
 
 #PCA plot: figure out what Reporter Intensity Cols correspond to which samples 
 plotPCA <- function(data, design)
 {
-  data <- select(data, -c(1,10,11,12,21,22,23,32,33)) #removes TMT1 (light standard) and TMT11 (heavy standard) and TMT 10 (bridge)
+  data <- dplyr::select(data, -c(1,10,11,12,21,22,23,32,33)) #removes TMT1 (light standard) and TMT11 (heavy standard) and TMT 10 (bridge)
   design <- design[-c(1,10,11,12,21,22,23,32,33),]
   data.t <- as.data.frame(t(data))
   pca <- prcomp(data.t)
@@ -99,12 +106,15 @@ plotPCA <- function(data, design)
   )
   print(p)
 }
-plotPCA(select(valid.data, reporter.intensities), design)
+plotPCA(dplyr::select(normalized.data, reporter.intensities), design)
 
 #RUNNNIG TIMECOURSE 
-#Q- do we want this change in normalization to be done before the pca? 
 
-#Re-Format Data 
+#gnames <- normalized.data$`Gene names`
+#out1 <- mb.long(normalized.data, times=4, reps=3)
+#summary(out1)
+
+
 
 
 
