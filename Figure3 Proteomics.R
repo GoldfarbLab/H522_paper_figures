@@ -45,34 +45,40 @@ valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) == 3)
 #3- correct the data by dividing each column by its percent
 #4- Then divide all rows by the ref channel
 #5- Combine back into one table
-#5- Then take the log2 of the dataset (????)
+#5- Then take the log2 of the dataset 
 #6- Combine back into one table with gene names and protein names 
-geneprotein.names <- dplyr::select(valid.data, "Gene names", "Protein names")
+
+#Replace 0s with min of dataset 
+gene.names <- dplyr::select(valid.data, "Gene names")
+normalization.data <- dplyr::select(valid.data, reporter.intensities)
+normalization.data[normalization.data == 0] <- min(normalization.data[normalization.data > 0])
 
 #REP1
-normalization.data.rep1 <- dplyr::select(valid.data, intensities.rep1)
+normalization.data.rep1 <- dplyr::select(normalization.data, intensities.rep1)
 normalization.factor.rep1 <- colSums(normalization.data.rep1)
 normalization.factor.rep1 <- normalization.factor.rep1/max(normalization.factor.rep1)
 normalization.data.rep1 <- normalization.data.rep1/normalization.factor.rep1
 normalized.data.rep1 <- sweep(normalization.data.rep1, 1, normalization.data.rep1[, 10], "/")
 
 #REP2
-normalization.data.rep2 <- dplyr::select(valid.data, intensities.rep2)
+normalization.data.rep2 <- dplyr::select(normalization.data, intensities.rep2)
 normalization.factor.rep2 <- colSums(normalization.data.rep2)
 normalization.factor.rep2 <- normalization.factor.rep2/max(normalization.factor.rep2)
 normalization.data.rep2 <- normalization.data.rep2/normalization.factor.rep2
 normalized.data.rep2 <- sweep(normalization.data.rep2, 1, normalization.data.rep2[, 10], "/")
 
 #REP3
-normalization.data.rep3 <- dplyr::select(valid.data, intensities.rep3)
+normalization.data.rep3 <- dplyr::select(normalization.data, intensities.rep3)
 normalization.factor.rep3 <- colSums(normalization.data.rep3)
 normalization.factor.rep3 <- normalization.factor.rep3/max(normalization.factor.rep3)
 normalization.data.rep3 <- normalization.data.rep3/normalization.factor.rep3
 normalized.data.rep3 <- sweep(normalization.data.rep3, 1, normalization.data.rep3[, 10], "/")
 
 normalized.data <- cbind(normalized.data.rep1, normalized.data.rep2, normalized.data.rep3)
+
+#NaN and Inf Values? 
 normalized.data <- log2(normalized.data)
-normalized.data <- cbind(geneprotein.names, normalized.data)
+normalized.data <- cbind(gene.names, normalized.data)
 
 
 #PCA plot: figure out what Reporter Intensity Cols correspond to which samples 
@@ -109,12 +115,14 @@ plotPCA <- function(data, design)
 plotPCA(dplyr::select(normalized.data, reporter.intensities), design)
 
 #RUNNNIG TIMECOURSE 
+#probably need to remove some labels again...
+timecourse.data <- dplyr::select(normalized.data, -c(2,11,12,13,21,23,24,33,34)) #removes TMT1 (light standard) and TMT11 (heavy standard) and TMT 10 (bridge)
+gnames <- rownames(normalized.data)
+#assay <- rep(c("1", "2", "3"), each = 11)
+#time.grp <- rep(c(1:11), 3)
+reps <- rep(3, nrow(normalized.data))
 
-#gnames <- normalized.data$`Gene names`
-#out1 <- mb.long(normalized.data, times=4, reps=3)
-#summary(out1)
-
-
-
+out1 <- mb.long(normalized.data, times=4, reps=reps)
+plotProfile(out1,type="b")
 
 
