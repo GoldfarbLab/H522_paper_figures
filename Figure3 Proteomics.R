@@ -1,0 +1,128 @@
+library(timecourse)
+library(tidyverse)
+
+#read file 
+#path <- "/Users/riajasuja/Box/CellBio-GoldfarbLab/Users/Ria Jasuja/proteinGroups1.txt" 
+
+data <- read_tsv(path)
+design <- read_csv("data/Experimental Design Proteomics.csv")
+
+golden.ratio <- 1/1.618
+grey <- "#333333"
+light.grey <- "#AAAAAA"
+theme.basic <- (theme_minimal() 
+                + theme(axis.line = element_line(colour = grey, size = 1, linetype = "solid"), 
+                        panel.grid = element_blank(),
+                        axis.ticks = element_line(size = 0.5, colour = grey),
+                        axis.ticks.length = unit(.25, "cm"),
+                        aspect.ratio = golden.ratio,
+                        plot.title = element_text(size=11, hjust=0.5))
+)
+#filter data for contaminants, cols ES (Only ID'd by site) ET (Reverse)  EU (Potential Contaminant) and K (at least 1 unique peptide)
+
+filtered.data <- filter(data, is.na(data$"Only identified by site"), is.na(data$"Reverse"), is.na(data$"Potential contaminant"), data$"Razor + unique peptides" > 1)
+
+#condense data to just the useful columns, ie Gene Names and Reporter Intensities 
+
+reporter.intensities <- grep("Reporter intensity corrected", colnames(filtered.data), ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE, value = TRUE)
+filtered.data <- dplyr::select(filtered.data, "Protein names", "Gene names", reporter.intensities)
+
+#At least 1 value for each Rep (aka not all 0s)
+#filter data into Reps 
+intensities.rep1 <- grep("Rep 1", colnames(filtered.data), ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE, value = TRUE)
+intensities.rep2 <- grep("Rep 2", colnames(filtered.data), ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE, value = TRUE)
+intensities.rep3 <- grep("Rep 3", colnames(filtered.data), ignore.case = FALSE, perl = FALSE, fixed = FALSE, useBytes = FALSE, value = TRUE)
+#At least 1 nonzero value / Rep (idea: sum each row for each rep and if its more than 0 its good) 
+rep1.valid <- rowSums(dplyr::select(filtered.data, all_of(intensities.rep1)) > 0) > 0
+rep2.valid <- rowSums(dplyr::select(filtered.data, all_of(intensities.rep2)) > 0) > 0
+rep3.valid <- rowSums(dplyr::select(filtered.data, all_of(intensities.rep3)) > 0) > 0
+
+valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) == 3)
+
+#NORMALIZE DATA 
+#1- take column sums of quantifications from each REP 
+#2- divide sums by max of those sums 
+#3- correct the data by dividing each column by its percent
+#4- Then divide all rows by the ref channel
+#5- Combine back into one table
+#5- Then take the log2 of the dataset 
+#6- Combine back into one table with gene names and protein names 
+
+#Replace 0s with min of dataset 
+gene.names <- dplyr::select(valid.data, "Gene names")
+normalization.data <- dplyr::select(valid.data, reporter.intensities)
+normalization.data[normalization.data == 0] <- min(normalization.data[normalization.data > 0])
+
+#REP1
+normalization.data.rep1 <- dplyr::select(normalization.data, intensities.rep1)
+normalization.factor.rep1 <- colSums(normalization.data.rep1)
+normalization.factor.rep1 <- normalization.factor.rep1/max(normalization.factor.rep1)
+normalization.data.rep1 <- normalization.data.rep1/normalization.factor.rep1
+normalized.data.rep1 <- sweep(normalization.data.rep1, 1, normalization.data.rep1[, 10], "/")
+
+#REP2
+normalization.data.rep2 <- dplyr::select(normalization.data, intensities.rep2)
+normalization.factor.rep2 <- colSums(normalization.data.rep2)
+normalization.factor.rep2 <- normalization.factor.rep2/max(normalization.factor.rep2)
+normalization.data.rep2 <- normalization.data.rep2/normalization.factor.rep2
+normalized.data.rep2 <- sweep(normalization.data.rep2, 1, normalization.data.rep2[, 10], "/")
+
+#REP3
+normalization.data.rep3 <- dplyr::select(normalization.data, intensities.rep3)
+normalization.factor.rep3 <- colSums(normalization.data.rep3)
+normalization.factor.rep3 <- normalization.factor.rep3/max(normalization.factor.rep3)
+normalization.data.rep3 <- normalization.data.rep3/normalization.factor.rep3
+normalized.data.rep3 <- sweep(normalization.data.rep3, 1, normalization.data.rep3[, 10], "/")
+
+normalized.data <- cbind(normalized.data.rep1, normalized.data.rep2, normalized.data.rep3)
+
+#NaN and Inf Values? 
+normalized.data <- log2(normalized.data)
+normalized.data <- cbind(gene.names, normalized.data)
+
+
+#PCA plot: figure out what Reporter Intensity Cols correspond to which samples 
+plotPCA <- function(data, design)
+{
+  data <- dplyr::select(data, -c(1,10,11,12,21,22,23,32,33)) #removes TMT1 (light standard) and TMT11 (heavy standard) and TMT 10 (bridge)
+  design <- design[-c(1,10,11,12,21,22,23,32,33),]
+  data.t <- as.data.frame(t(data))
+  pca <- prcomp(data.t)
+  eigen <- pca$sdev^2
+  variance <- (eigen/sum(eigen)) * 100
+  variance <- format(round(variance, 2), nsmall=2) # show 2 digits after decimal
+  
+  plotting.data <- cbind(data.frame(pca$x), design)
+  y.range <- max(plotting.data$PC2) - min(plotting.data$PC2)
+  min.x <- min(plotting.data$PC1)
+  max.x <- max(plotting.data$PC1)
+  x.range <- max.x - min.x
+  
+  p <- (ggplot(plotting.data, aes(x=PC1, y=PC2, shape=as.factor(Infected), color=Time, label=Time)) 
+        + geom_point(size=3)
+        + geom_text(size=3, nudge_y = y.range/20)
+        
+        + scale_x_continuous(limits=c(min.x - x.range/10, max.x + x.range/10))
+        
+        + xlab(paste("PC1 (", variance[1], "% explained variance)", sep=""))
+        + ylab(paste("PC2 (", variance[2], "% explained variance)", sep=""))
+        + ggtitle("Principal Component Analysis (PCA) Proteomics")
+        
+        + theme.basic
+  )
+  print(p)
+}
+plotPCA(dplyr::select(normalized.data, reporter.intensities), design)
+
+#RUNNNIG TIMECOURSE 
+#probably need to remove some labels again...
+timecourse.data <- dplyr::select(normalized.data, -c(2,11,12,13,21,23,24,33,34)) #removes TMT1 (light standard) and TMT11 (heavy standard) and TMT 10 (bridge)
+gnames <- rownames(normalized.data)
+#assay <- rep(c("1", "2", "3"), each = 11)
+#time.grp <- rep(c(1:11), 3)
+reps <- rep(3, nrow(normalized.data))
+
+out1 <- mb.long(normalized.data, times=4, reps=reps)
+plotProfile(out1,type="b")
+
+
