@@ -104,4 +104,5 @@ proteins[, intensity.col.rep.names] <- tmp[, intensity.col.rep.names]
 proteins[, count.col.rep.names] <- tmp[, count.col.rep.names]
 
 # write new proteinGroups file
+createDir(here("data_processed"))
 write_tsv(proteins, here("data_processed/requantifiedProteins.txt"))
