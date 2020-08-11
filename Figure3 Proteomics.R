@@ -438,8 +438,8 @@ F5.bottom <- arrangeGrob(figHeatmap, figClusterProfiles,
                          ncol = 3)
 
 #grid.draw(F5.top)  # to view the plot
-saveFig(F5.top, "Figure5_top", 7.5, 9)
-saveFig(F5.bottom, "Figure5_bottom", 7.5, 6)
+saveFig(F5.top, "Figure5_top", 9, 7.5)
+saveFig(F5.bottom, "Figure5_bottom", 6, 7.5)
 
 ################################################################################
 # Work in progress

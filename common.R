@@ -34,7 +34,7 @@ theme.basic <- (theme_minimal()
                         )
 )
 
-saveFig <- function(p, filename, width, height)
+saveFig <- function(p, filename, height, width)
 {
   createDir(here("figures"))
   ggsave(paste(here("figures/"),filename, ".pdf", sep=""), width=width, height=height, compress=F, p)
