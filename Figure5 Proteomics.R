@@ -362,7 +362,7 @@ phyper(num.diff.interactors, num.interactors, num.proteins-num.interactors, num.
 proteins.z.scored <- t(scale(t(as.matrix(select(diff.proteins, all_of(quant.colnames)))), center=T, scale=T))
 rownames(proteins.z.scored) <- diff.proteins$`Gene names`
 
-num.clusters = 6
+num.clusters = 7
 rows.cor <- cor(t(proteins.z.scored), method = "pearson")
 row.clusters <- cutree(hclust(as.dist(1 - rows.cor), method="ward.D2"), num.clusters)
 
