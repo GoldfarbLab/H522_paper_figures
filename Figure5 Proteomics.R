@@ -368,20 +368,20 @@ row.clusters <- cutree(hclust(as.dist(1 - rows.cor), method="ward.D2"), num.clus
 
 # reorder clusters
 # 7->1, 2->2, 4->3, 1->4, 3->5, 5->6, 6->7 
-pos.1 <- which(row.clusters == 1)
-pos.2 <- which(row.clusters == 2)
-pos.3 <- which(row.clusters == 3)
-pos.4 <- which(row.clusters == 4)
-pos.5 <- which(row.clusters == 5)
-pos.6 <- which(row.clusters == 6)
-pos.7 <- which(row.clusters == 7)
-row.clusters[pos.7] <- 1
-row.clusters[pos.2] <- 2
-row.clusters[pos.4] <- 3
-row.clusters[pos.1] <- 4
-row.clusters[pos.3] <- 5
-row.clusters[pos.5] <- 6
-row.clusters[pos.6] <- 7
+#pos.1 <- which(row.clusters == 1)
+#pos.2 <- which(row.clusters == 2)
+#pos.3 <- which(row.clusters == 3)
+#pos.4 <- which(row.clusters == 4)
+#pos.5 <- which(row.clusters == 5)
+#pos.6 <- which(row.clusters == 6)
+#pos.7 <- which(row.clusters == 7)
+#row.clusters[pos.7] <- 1
+#row.clusters[pos.2] <- 2
+#row.clusters[pos.4] <- 3
+#row.clusters[pos.1] <- 4
+#row.clusters[pos.3] <- 5
+#row.clusters[pos.5] <- 6
+#row.clusters[pos.6] <- 7
 
 diff.proteins$cluster <- row.clusters
 proteins <- left_join(proteins, select(diff.proteins, "Protein IDs", "cluster"), by="Protein IDs")
