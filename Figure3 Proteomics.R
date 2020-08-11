@@ -1,11 +1,14 @@
+library(here)
+library(limma)
 library(topGO)
 library(timecourse)
 library(ComplexHeatmap)
-library(here)
 library(cluster)
 
 source(here("common.R"))
-#source(here("RequantifyProteomics.R"))
+select <- get(x = "select", pos = "package:dplyr") # deal with function masking
+
+#source(here("RequantifyProteomics.R")) # only necessary once
 
 log.stats.threshold = -log10(0.05)
 log.fc.threshold = log2(1.2)
