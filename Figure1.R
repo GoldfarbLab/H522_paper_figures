@@ -120,12 +120,12 @@ plotFACS <- function(data) {
 # Read data
 ################################################################################
 # Figure 1
-FACS.H522.EXP08.09 <- read_csv(here("data_raw/FACS H522_EXP08 and EXP09.csv"))
-Viral.load.H522.EXP08.09 <- read_csv(here("data_raw/Viral Load H522_EXP08 and EXP09.csv"))
-Viral.load.insups.H522.EXP08.09 <- read_csv(here("data_raw/Viral Load-insups H522 EXP08 and EXP09.csv"))
-Viral.load.cell.lines <- read_csv(here("data_raw/Viral Load-cell lines.csv"))
+FACS.H522.EXP08.09 <- read_csv(here("data/FACS H522_EXP08 and EXP09.csv"))
+Viral.load.H522.EXP08.09 <- read_csv(here("data/Viral Load H522_EXP08 and EXP09.csv"))
+Viral.load.insups.H522.EXP08.09 <- read_csv(here("data/Viral Load-insups H522 EXP08 and EXP09.csv"))
+Viral.load.cell.lines <- read_csv(here("data/Viral Load-cell lines.csv"))
 # Figure S1
-Viral.load.cell.lines.low.MOI <- read_csv(here("data_raw/Viral Load-cell lines MOI 015.csv"))
+Viral.load.cell.lines.low.MOI <- read_csv(here("data/Viral Load-cell lines MOI 015.csv"))
 
 ################################################################################
 # Generate figures
