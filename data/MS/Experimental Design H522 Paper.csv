@@ -1,0 +1,28 @@
+﻿Name,Replicate,Condition,Time,Infected
+TMT1 R1,1,Mock - 4 hr,4h,Mock
+TMT2 R1,1,4 hr,4h,Infected
+TMT3 R1,1,12 hr,12h,Infected
+TMT4 R1,1,24 hr,24h,Infected
+TMT5 R1,1,48 hr,48h,Infected
+TMT6 R1,1,72 hr,72h,Infected
+TMT7 R1,1,96 hr,96h,Infected
+TMT8 R1,1,Mock - 96 hr,96h,Mock
+TMT9 R1,1,Bridge,,
+TMT1 R2,2,Mock - 4 hr,4h,Mock
+TMT2 R2,2,4 hr,4h,Infected
+TMT3 R2,2,12 hr,12h,Infected
+TMT4 R2,2,24 hr,24h,Infected
+TMT5 R2,2,48 hr,48h,Infected
+TMT6 R2,2,72 hr,72h,Infected
+TMT7 R2,2,96 hr,96h,Infected
+TMT8 R2,2,Mock - 96 hr,96h,Mock
+TMT9 R2,2,Bridge,,
+TMT1 R3,3,Mock - 4 hr,4h,Mock
+TMT2 R3,3,4 hr,4h,Infected
+TMT3 R3,3,12 hr,12h,Infected
+TMT4 R3,3,24 hr,24h,Infected
+TMT5 R3,3,48 hr,48h,Infected
+TMT6 R3,3,72 hr,72h,Infected
+TMT7 R3,3,96 hr,96h,Infected
+TMT8 R3,3,Mock - 96 hr,96h,Mock
+TMT9 R3,3,Bridge,,

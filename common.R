@@ -1,0 +1,51 @@
+library(limma)
+library(tidyverse)
+library(RColorBrewer)
+library(circlize)
+library(egg)
+
+golden.ratio <- 1/1.618
+grey <- "#333333"
+light.grey <- "#AAAAAA"
+COV2.color <- "#fb8072"
+
+colors.MOI <- brewer.pal(5, 'YlGnBu')[2:5]
+
+colors.Cell.line <- c("H522" = "#ff7f00",
+                      "Vero E6" = "#984ea3", 
+                      "Detroit562" = light.grey, 
+                      "SCC25" = light.grey,
+                      "OE21" = light.grey,
+                      "KYSE30" = light.grey,
+                      "H596" = light.grey,
+                      "H1299" = light.grey,
+                      "HCC827" = light.grey,
+                      "PC-9" = light.grey,
+                      "A427" = light.grey)
+
+theme.basic <- (theme_minimal() 
+                + theme(axis.line = element_line(colour = grey, size = 0.5, linetype = "solid"), 
+                        panel.grid = element_blank(),
+                        axis.ticks = element_line(size = 0.5, colour = grey),
+                        axis.ticks.length = unit(.1, "cm"),
+                        aspect.ratio = golden.ratio,
+                        plot.title = element_text(size=8, hjust=0.5),
+                        text = element_text(size=7),
+                        axis.title = element_text(size=7)
+                        )
+)
+
+saveFig <- function(p, filename, width, height)
+{
+  createDir(here("figures"))
+  ggsave(paste(here("figures/"),filename, ".pdf", sep=""), width=width, height=height, compress=F, p)
+}
+
+# create directory if it doesn't exist
+createDir <- function(path)
+{
+  if (!file.exists(path))
+  {
+    dir.create(path)
+  }
+}

@@ -1,33 +1,9 @@
 library(tidyverse)
 library(scales)
-library(egg)
 library(RColorBrewer)
+library(here)
 
-golden.ratio <- 1/1.618
-grey <- "#333333"
-light.grey <- "#AAAAAA"
-colors.MOI <- brewer.pal(5, 'YlGnBu')[2:5]
-colors.Cell.line <- c("H522" = "#ff7f00",
-                     "Vero E6" = "#984ea3", 
-                     "Detroit562" = light.grey, 
-                     "SCC25" = light.grey,
-                     "OE21" = light.grey,
-                     "KYSE30" = light.grey,
-                     "H596" = light.grey,
-                     "H1299" = light.grey,
-                     "HCC827" = light.grey,
-                     "PC-9" = light.grey,
-                     "A427" = light.grey)
-theme.basic <- (theme_minimal() 
-                + theme(axis.line = element_line(colour = grey, size = 1, linetype = "solid"), 
-                        panel.grid = element_blank(),
-                        axis.ticks = element_line(size = 0.5, colour = grey),
-                        axis.ticks.length = unit(.25, "cm"),
-                        aspect.ratio = golden.ratio,
-                        plot.title = element_text(size=11, hjust=0.5))
-                )
-
-
+source(here("common.R"))
 
 ################################################################################
 ## Gives count, mean, standard deviation, standard error of the mean, and confidence interval (default 95%).
@@ -39,8 +15,6 @@ theme.basic <- (theme_minimal()
 ################################################################################
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
                       conf.interval=.95, .drop=TRUE) {
-  library(plyr)
-  
   # New version of length which can handle NA's: if na.rm==T, don't count them
   length2 <- function (x, na.rm=FALSE) {
     if (na.rm) sum(!is.na(x))
@@ -49,7 +23,7 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
   
   # This does the summary. For each group's data frame, return a vector with
   # N, mean, and sd
-  datac <- ddply(data, groupvars, .drop=.drop,
+  datac <- plyr::ddply(data, groupvars, .drop=.drop,
                  .fun = function(xx, col) {
                    c(N    = length2(xx[[col]], na.rm=na.rm),
                      mean = mean   (xx[[col]], na.rm=na.rm),
@@ -60,7 +34,7 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
   )
   
   # Rename the "mean" column    
-  datac <- rename(datac, c("mean" = measurevar))
+  datac <- plyr::rename(datac, c("mean" = measurevar))
   
   datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
   
@@ -188,34 +162,36 @@ plotFACS <- function(data) {
 ################################################################################
 # Read data
 ################################################################################
-data.path <- "./data/"
 # Figure 1
-FACS.H522.EXP08.09 <- read_csv(str_c(data.path, "FACS H522_EXP08 and EXP09.csv"))
-Viral.load.H522.EXP08.09 <- read_csv(str_c(data.path,"Viral Load H522_EXP08 and EXP09.csv"))
-Viral.load.insups.H522.EXP08.09 <- read_csv(str_c(data.path,"Viral Load-insups H522 EXP08 and EXP09.csv"))
-Viral.load.cell.lines <- read_csv(str_c(data.path,"Viral Load-cell lines.csv"))
+FACS.H522.EXP08.09 <- read_csv(here("data/FACS H522_EXP08 and EXP09.csv"))
+Viral.load.H522.EXP08.09 <- read_csv(here("data/Viral Load H522_EXP08 and EXP09.csv"))
+Viral.load.insups.H522.EXP08.09 <- read_csv(here("data/Viral Load-insups H522 EXP08 and EXP09.csv"))
+Viral.load.cell.lines <- read_csv(here("data/Viral Load-cell lines.csv"))
 # Figure S1
-Viral.load.cell.lines.low.MOI <- read_csv(str_c(data.path,"Viral Load-cell lines MOI 015.csv"))
+Viral.load.cell.lines.low.MOI <- read_csv(here("data/Viral Load-cell lines MOI 015.csv"))
 
 ################################################################################
 # Generate figures
 ################################################################################
 # Figure 1
-p1a <- plotViralLoadCellLines(Viral.load.cell.lines, "Cell-associated Viral RNA − All lines", 5)
-p1b <- plotViralLoad(Viral.load.H522.EXP08.09, "Cell-associated Viral RNA − H522", expression("Viral RNA (copies/"*mu*"L)"))
-p1c <- plotViralLoad(Viral.load.insups.H522.EXP08.09, "Viral RNA in media − H522", "Viral RNA (copies/mL)" )
+p1a <- plotViralLoadCellLines(Viral.load.cell.lines, "Cell-associated Viral RNA - All lines", 5)
+p1b <- plotViralLoad(Viral.load.H522.EXP08.09, "Cell-associated Viral RNA - H522", expression("Viral RNA (copies/"*mu*"L)"))
+p1c <- plotViralLoad(Viral.load.insups.H522.EXP08.09, "Viral RNA in media - H522", "Viral RNA (copies/mL)" )
 p1d <- plotFACS(FACS.H522.EXP08.09)
 
-grid.arrange(p1a, p1b, p1c,
+F1 <- arrangeGrob(p1a, p1b, p1c,
              p1d,
              nrow = 2,
-             ncol = 3
-)
+             ncol = 3)
+
+#grid.draw(F1) # to view the plot
+saveFig(F1, "Figure1", 7.5, 4)
 
 # Figure S1
-ps1a <- plotViralLoadCellLines(Viral.load.cell.lines.low.MOI, "Cell-associated Viral RNA (MOI 0.015) − All lines", 4)
-grid.arrange(ps1a,
-             nrow = 1,
-             ncol = 3
-)
+ps1a <- plotViralLoadCellLines(Viral.load.cell.lines.low.MOI, "Cell-associated Viral RNA (MOI 0.015) - All lines", 4)
+FS1 <- arrangeGrob(ps1a,
+             nrow = 2,
+             ncol = 3)
+
+saveFig(FS1, "FigureS1", 7.5, 4)
 
