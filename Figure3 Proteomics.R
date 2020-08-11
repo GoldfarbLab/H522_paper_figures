@@ -8,7 +8,7 @@ library(cluster)
 source(here("common.R"))
 select <- get(x = "select", pos = "package:dplyr") # deal with function masking
 
-#source(here("RequantifyProteomics.R")) # only necessary once
+#source(here("RequantifyProteomics.R")) # only necessary to run once
 
 log.stats.threshold = -log10(0.05)
 log.fc.threshold = log2(1.2)
@@ -243,9 +243,9 @@ plotVolcano <- function(proteins)
 ################################################################################
 # Read data
 ################################################################################
-data <- read_tsv(here("data/MS/processedProteins.txt"), guess_max=10000)
+data <- read_tsv(here("data_processed/proteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
-SARS.interactors <- select(read_csv(here("data/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
+SARS.interactors <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
 #TMT9: Reference Channel 
 #TMT10: remove
 

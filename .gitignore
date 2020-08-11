@@ -41,5 +41,5 @@ vignettes/*.pdf
 # osx
 /**/*.DS_Store
 
-# figures
+# folders to ignore
 figures/*

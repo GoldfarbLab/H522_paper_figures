@@ -6,7 +6,7 @@ data.path <- "~/Box/CellBio-GoldfarbLab/Data/Mass Spec/Analysis/H522 SARS-CoV-2/
 ################################################################################
 # Process evidence
 ################################################################################
-evidence <- read_tsv(here('data/MS/evidence.zip'), guess_max=10000)
+evidence <- read_tsv(here('data_raw/MS/evidence.zip'), guess_max=10000)
 intensity.col.names <- grep("Reporter intensity corrected", colnames(evidence), value=T)
 
 evidence <- filter(evidence, `Reporter intensity corrected 9` > 0)
@@ -23,7 +23,7 @@ evidence.aggregate <- evidence %>% group_by(Experiment, `Mod. peptide ID`) %>% s
 ################################################################################
 # Process modification specific peptides
 ################################################################################
-mod.peptides <- read_tsv(here('data/MS/modificationSpecificPeptides.zip'), guess_max=10000)
+mod.peptides <- read_tsv(here('data_raw/MS/modificationSpecificPeptides.zip'), guess_max=10000)
 intensity.col.rep.names <- grep("Reporter intensity corrected.*R", colnames(mod.peptides), value=T)
 mod.peptides <- filter(mod.peptides, `Acetyl (Protein N-term)` == 0 & `Deamidation (N)` == 0)
 
@@ -51,7 +51,7 @@ mod.peptides.aggregate <- mod.peptides %>% group_by(`Peptide ID`) %>% summarise_
 ################################################################################
 # Process peptides
 ################################################################################
-peptides <- read_tsv(here('data/MS/peptides.zip'), guess_max=10000)
+peptides <- read_tsv(here('data_raw/MS/peptides.zip'), guess_max=10000)
 #peptides <- filter(peptides, `Unique (Groups)` == "yes")
 
 # clear old quantification
@@ -83,7 +83,7 @@ peptides.aggregate <- left_join(peptides.aggregate, peptides.aggregate.count)
 ################################################################################
 # Process protein groups
 ################################################################################
-proteins <- read_tsv(here('data/MS/proteinGroups.zip'), guess_max=10000)
+proteins <- read_tsv(here('data_raw/MS/proteinGroups.zip'), guess_max=10000)
 count.col.rep.names <- grep("Reporter intensity count.*R", colnames(proteins), value=T)
 # extract leading razor protein
 proteins <- separate(proteins, `Majority protein IDs`, c("Leading razor protein"), sep=";", remove=F, extra="drop")
@@ -104,4 +104,4 @@ proteins[, intensity.col.rep.names] <- tmp[, intensity.col.rep.names]
 proteins[, count.col.rep.names] <- tmp[, count.col.rep.names]
 
 # write new proteinGroups file
-write_tsv(proteins, here("data/MS/processedProteins.txt"))
+write_tsv(proteins, here("data_processed/proteins.txt"))
