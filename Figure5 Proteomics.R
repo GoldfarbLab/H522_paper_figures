@@ -1,12 +1,14 @@
+library(here)
+library(limma)
 library(topGO)
 library(timecourse)
 library(ComplexHeatmap)
-library(here)
 library(cluster)
-library(limma)
 
 source(here("common.R"))
-#source(here("RequantifyProteomics.R"))
+select <- get(x = "select", pos = "package:dplyr") # deal with function masking
+
+source(here("RequantifyProteomics.R")) # only necessary to run once
 
 log.stats.threshold = -log10(0.05)
 log.fc.threshold = log2(1.2)
@@ -33,8 +35,8 @@ plotPCA <- function(data, design)
   plotting.data$Label[which(design$Replicate != 1)] <- ""
   
   p <- (ggplot(plotting.data, aes(x=PC1, y=PC2, shape=as.factor(Infected), color=Time, label=Label)) 
-        + geom_point(size=3, alpha=0.8)
-        + geom_text(size=3, nudge_y = y.range/20)
+        + geom_point(size=2, alpha=0.8)
+        + geom_text(size=2, nudge_y = y.range/20)
         
         + scale_x_continuous(limits=c(min.x - x.range/10, max.x + x.range/10))
         + scale_shape_discrete(name = "Condition")
@@ -48,9 +50,8 @@ plotPCA <- function(data, design)
         
         + theme.basic
         + theme(legend.position = c(0.9, 0.2), 
-                plot.subtitle = element_text(size=10, hjust = 0.5, face = "italic"))
+                plot.subtitle = element_text(size=7, hjust = 0.5, face = "italic"))
   )
-  print(p)
 }
 
 ################################################################################
@@ -83,6 +84,7 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
                            # colors #-max(abs(quant)), max(abs(quant)
                            col = colorRamp2(seq(-3, 3, length=256), rev(colorRampPalette(brewer.pal(10, "RdBu"))(256))),
                            # legends
+                           show_heatmap_legend = F,
                            heatmap_legend_param = list(color_bar = "continuous",
                                                        title_gp = gpar(fontsize = 8),
                                                        labels_gp = gpar(fontsize = 6),
@@ -113,11 +115,7 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   
   ht_list = heatmap.proteins + cluster.rowAnnot + gene.rowAnnot
   
-  
-  
-  pdf("~/Downloads/heatmap.pdf", 4.5, 6)
-  draw(ht_list)
-  dev.off()
+  gb_heatmap = grid.grabExpr(draw(ht_list), height=6, width=4)
 }
 
 ################################################################################
@@ -158,7 +156,6 @@ plotClusterProfiles <- function(diff.proteins)
         + theme(legend.position = "none",
                 axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
   )
-  print(p)
 }
 
 ################################################################################
@@ -174,23 +171,21 @@ plotCoVProfiles <- function(proteins)
   
   p <- (ggplot(SARS2.prots, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
         
-        + geom_line(size=1, alpha=0.75, color="#fb8072") #color="#fb8072"
-        + geom_point(color="#fb8072")
-        + geom_text()
+        + geom_line(size=0.5, alpha=0.75, color=COV2.color)
+        + geom_point(color=COV2.color)
+        + geom_text(size=2)
         
         + ggtitle("SARS-CoV-2 Proteins")
         
         + scale_y_continuous(name = "log2(Intensity / 4h Mock)", breaks = seq(0,5,1))
         + scale_x_continuous(name = "Hours post-infection", 
                              breaks = c(4, 12, 24, 48, 72, 96),
-                             expand = c(0.05,0))
+                             expand = c(0.05, 0))
         
         + theme.basic
         + theme(legend.position = "none",
                 axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
   )
-  
-  print(p)
 }
 
 
@@ -222,34 +217,35 @@ plotVolcano <- function(proteins)
   proteins$Label[!proteins$SARS_CoV_2] <- ""
   
   p <- (ggplot(data=proteins, aes(x=logFC, y=log.adj.P.Val, label=Label, color=significance))
-        + geom_point(alpha=0.8) 
-        + geom_text(nudge_y = 0.03 * y.range, nudge_x = 0.04 * x.range, size=3, color="#fb8072")
+        + geom_point(size=0.5) 
+        + geom_text(nudge_y = 0.05 * y.range, nudge_x = 0.05 * x.range, size=2, color=COV2.color)
         
-        + geom_vline(xintercept = -log.fc.threshold, linetype="dashed", color="#333333")
-        + geom_vline(xintercept = log.fc.threshold, linetype="dashed", color="#333333")
-        + geom_hline(yintercept = -log10(0.05), linetype="dashed", color="#333333")
+        + geom_vline(xintercept = -log.fc.threshold, linetype="dashed", color=grey)
+        + geom_vline(xintercept = log.fc.threshold, linetype="dashed", color=grey)
+        + geom_hline(yintercept = -log10(0.05), linetype="dashed", color=grey)
         
-        + scale_color_manual(values=c("none"="#999999", "sig fold-change"="#999999", "sig statistic"="#555555", "sig both"="#ff2020", "SARS-CoV-2"="#fb8072"))
+        + scale_color_manual(values=c("none"="#AAAAAA55", "sig fold-change"="#AAAAAA55", "sig statistic"="#AAAAAA55", "sig both"="#1f78b455", "SARS-CoV-2"="#fb8072"))
         
         + scale_x_continuous(limits=c(min.x - x.range/20, x.limit + x.range/20),
                              breaks = seq(-3,6,1))
         
         + ylab("-log10(q-value)")
-        + xlab("log2(96hr / 96hr - Mock)")
+        + xlab("log2(fold-change)")
+        
+        + ggtitle("96 hpi vs 96 hr mock")
         
         + theme.basic
+        + theme(legend.position = "none")
   )
-  
-  print(p)
 }
 
 
 ################################################################################
 # Read data
 ################################################################################
-data <- read_tsv(here("data/MS/processedProteins.txt"), guess_max=10000)
+data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
-SARS.interactors <- select(read_csv(here("data/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
+SARS.interactors <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
@@ -388,7 +384,7 @@ row.clusters[pos.5] <- 6
 row.clusters[pos.6] <- 7
 
 diff.proteins$cluster <- row.clusters
-proteins <- left_join(proteins, select(diff.proteins, "Gene names", "cluster"), by="Gene names")
+proteins <- left_join(proteins, select(diff.proteins, "Protein IDs", "cluster"), by="Protein IDs")
 
 
 
@@ -426,11 +422,24 @@ diff.proteins.averaged.condition.fc.mock <- (diff.proteins.averaged.condition %>
 ################################################################################
 # Generate figures
 ################################################################################
-plotPCA(normalized.data, design)
-plotHeatmap(proteins.z.scored, diff.proteins, design)
-plotClusterProfiles(diff.proteins.averaged.condition.fc.mock)
-plotCoVProfiles(proteins.averaged.condition.fc.mock)
-plotVolcano(proteins)
+figPCA <- plotPCA(normalized.data, design)
+figHeatmap <- plotHeatmap(proteins.z.scored, diff.proteins, design)
+figClusterProfiles <- plotClusterProfiles(diff.proteins.averaged.condition.fc.mock)
+figCOVProfiles <- plotCoVProfiles(proteins.averaged.condition.fc.mock)
+figVolcano <- plotVolcano(proteins)
+
+
+F5.top <- arrangeGrob(figPCA, figCOVProfiles, figVolcano,
+                  nrow = 1,
+                  ncol = 3)
+F5.bottom <- arrangeGrob(figHeatmap, figClusterProfiles,
+                         widths = unit(c(4, 1.5, 2), "in"),
+                         nrow = 1,
+                         ncol = 3)
+
+#grid.draw(F5.top)  # to view the plot
+saveFig(F5.top, "Figure5_top", 9, 7.5)
+saveFig(F5.bottom, "Figure5_bottom", 6, 7.5)
 
 ################################################################################
 # Work in progress
@@ -447,3 +456,10 @@ plotVolcano(proteins)
 #                    annot = annFUN.org)
 
 #write_tsv(diff.proteins.melted, "~/Downloads/clusters.tsv")
+
+################################################################################
+# Write processed data
+################################################################################
+write_tsv(proteins, here("data_processed/proteinsNormedToBridge.txt"))
+
+

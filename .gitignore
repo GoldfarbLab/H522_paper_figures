@@ -43,3 +43,4 @@ vignettes/*.pdf
 
 # folders to ignore
 figures/*
+data_processed/*
