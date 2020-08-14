@@ -8,7 +8,7 @@ library(cluster)
 source(here("common.R"))
 select <- get(x = "select", pos = "package:dplyr") # deal with function masking
 
-source(here("RequantifyProteomics.R")) # only necessary to run once
+#source(here("RequantifyProteomics.R")) # only necessary to run once
 
 log.stats.threshold = -log10(0.05)
 log.fc.threshold = log2(1.2)
@@ -172,7 +172,7 @@ plotCoVProfiles <- function(proteins)
   p <- (ggplot(SARS2.prots, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
         
         + geom_line(size=0.5, alpha=0.75, color=COV2.color)
-        + geom_point(color=COV2.color)
+        + geom_point(size=1, color=COV2.color)
         + geom_text(size=2)
         
         + ggtitle("SARS-CoV-2 Proteins")
@@ -183,8 +183,7 @@ plotCoVProfiles <- function(proteins)
                              expand = c(0.05, 0))
         
         + theme.basic
-        + theme(legend.position = "none",
-                axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+        + theme(legend.position = "none")
   )
 }
 
