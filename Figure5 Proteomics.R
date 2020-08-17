@@ -4,14 +4,15 @@ library(topGO)
 library(timecourse)
 library(ComplexHeatmap)
 library(cluster)
+library(ConsensusClusterPlus)
 
 source(here("common.R"))
 select <- get(x = "select", pos = "package:dplyr") # deal with function masking
 
-#source(here("RequantifyProteomics.R")) # only necessary to run once
+source(here("RequantifyProteomics.R")) # only necessary to run once
 
 log.stats.threshold = -log10(0.05)
-log.fc.threshold = log2(1.2)
+log.fc.threshold = log2(1.3)
 
 ################################################################################
 # PCA plot
@@ -91,8 +92,9 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
                                                        grid_width = unit(2,"mm")),
                            # clustering
                            cluster_columns = F,
-                           clustering_distance_rows = "pearson",
+                           clustering_distance_rows = "euclidean",
                            cluster_row_slices = F,
+                           show_row_dend = F,
                            #cluster_rows = row.clusters,
                            #split=7,
                            split = row.clusters,
@@ -150,7 +152,7 @@ plotClusterProfiles <- function(diff.proteins)
         + facet_grid(cluster ~ ., scales="free", 
                      labeller = labeller(cluster = cluster.labels))
         
-        + scale_color_brewer(type="qual",palette="Set2")
+        + scale_color_brewer(type="qual",palette="Set3")
         
         + theme.basic
         + theme(legend.position = "none",
@@ -358,29 +360,57 @@ phyper(num.diff.interactors, num.interactors, num.proteins-num.interactors, num.
 ################################################################################
 # Clustering
 ################################################################################
+diff.proteins.avg <- select(diff.proteins, all_of(quant.colnames)) %>% 
+  mutate("Mock - 4 hr" = rowMeans(select(., grep("Mock - 4 hr", quant.colnames, value=T)))) %>%
+  mutate("4 hr" = rowMeans(select(., grep("^4 hr", quant.colnames, value=T)))) %>%
+  mutate("12 hr" = rowMeans(select(., grep("12 hr", quant.colnames, value=T)))) %>%
+  mutate("24 hr" = rowMeans(select(., grep("24 hr", quant.colnames, value=T)))) %>%
+  mutate("48 hr" = rowMeans(select(., grep("48 hr", quant.colnames, value=T)))) %>%
+  mutate("72 hr" = rowMeans(select(., grep("72 hr", quant.colnames, value=T)))) %>%
+  mutate("96 hr" = rowMeans(select(., grep("96 hr", quant.colnames, value=T)))) %>%
+  mutate("Mock - 96 hr" = rowMeans(select(., grep("Mock - 96 hr", quant.colnames, value=T)))) %>%
+  select(-all_of(quant.colnames))
+  
+
+
+proteins.z.scored.avg <- t(scale(t(as.matrix(diff.proteins.avg)), center=T, scale=T))
 proteins.z.scored <- t(scale(t(as.matrix(select(diff.proteins, all_of(quant.colnames)))), center=T, scale=T))
 rownames(proteins.z.scored) <- diff.proteins$`Gene names`
 
-num.clusters = 7
-rows.cor <- cor(t(proteins.z.scored), method = "pearson")
-row.clusters <- cutree(hclust(as.dist(1 - rows.cor), method="ward.D2"), num.clusters)
+clustering.results = ConsensusClusterPlus(t(proteins.z.scored.avg),
+                                          maxK=15,
+                                          reps=1000,
+                                          pItem=0.8,
+                                          pFeature=1,
+                                          clusterAlg="km",
+                                          distance="euclidean",
+                                          plot="pdf", 
+                                          title="figures/km_1000", 
+                                          seed=1262118388.71279)
+
+num.clusters = 9
+row.clusters <- clustering.results[[num.clusters]][["consensusClass"]]
 
 # reorder clusters
-# 7->1, 2->2, 4->3, 1->4, 3->5, 5->6, 6->7 
-#pos.1 <- which(row.clusters == 1)
-#pos.2 <- which(row.clusters == 2)
-#pos.3 <- which(row.clusters == 3)
-#pos.4 <- which(row.clusters == 4)
-#pos.5 <- which(row.clusters == 5)
-#pos.6 <- which(row.clusters == 6)
-#pos.7 <- which(row.clusters == 7)
-#row.clusters[pos.7] <- 1
-#row.clusters[pos.2] <- 2
-#row.clusters[pos.4] <- 3
-#row.clusters[pos.1] <- 4
-#row.clusters[pos.3] <- 5
-#row.clusters[pos.5] <- 6
-#row.clusters[pos.6] <- 7
+# 7->1, 2->2, 3->3, 1->4, 4->5, 9->6, 5->7, 6->8, 8->9
+pos.1 <- which(row.clusters == 1)
+pos.2 <- which(row.clusters == 2)
+pos.3 <- which(row.clusters == 3)
+pos.4 <- which(row.clusters == 4)
+pos.5 <- which(row.clusters == 5)
+pos.6 <- which(row.clusters == 6)
+pos.7 <- which(row.clusters == 7)
+pos.8 <- which(row.clusters == 8)
+pos.9 <- which(row.clusters == 9)
+row.clusters[pos.7] <- 1
+row.clusters[pos.2] <- 2
+row.clusters[pos.3] <- 3
+row.clusters[pos.1] <- 4
+row.clusters[pos.4] <- 5
+row.clusters[pos.9] <- 6
+row.clusters[pos.5] <- 7
+row.clusters[pos.6] <- 8
+row.clusters[pos.8] <- 9
 
 diff.proteins$cluster <- row.clusters
 proteins <- left_join(proteins, select(diff.proteins, "Protein IDs", "cluster"), by="Protein IDs")
@@ -460,5 +490,7 @@ saveFig(F5.bottom, "Figure5_bottom", 6, 7.5)
 # Write processed data
 ################################################################################
 write_tsv(proteins, here("data_processed/proteinsNormedToBridge.txt"))
+
+
 
 
