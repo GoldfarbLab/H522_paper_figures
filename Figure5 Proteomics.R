@@ -1,15 +1,17 @@
 library(here)
 library(limma)
-library(topGO)
-library(timecourse)
+library(clusterProfiler)
+library(enrichplot)
+library(msigdbr)
 library(ComplexHeatmap)
-library(cluster)
 library(ConsensusClusterPlus)
+library(org.Hs.eg.db)
+library(CellSurfaceTools) # install.packages('devtools') # devtools::install_github("GoldfarbLab/CellSurfaceTools")
 
 source(here("common.R"))
 select <- get(x = "select", pos = "package:dplyr") # deal with function masking
 
-source(here("RequantifyProteomics.R")) # only necessary to run once
+#source(here("RequantifyProteomics.R")) # only necessary to run once
 
 log.stats.threshold = -log10(0.05)
 log.fc.threshold = log2(1.3)
@@ -77,7 +79,7 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   heatmap.proteins <- Heatmap(proteins.z.scored,
                            # labels
                            column_title = paste("Differentially Expressed Proteins\nn = ", nrow(proteins.z.scored), sep=""),
-                           column_title_gp = gpar(fontface = "bold", fontsize=7),
+                           column_title_gp = gpar(fontsize=7),
                            show_row_names = F,
                            row_names_gp = gpar(fontsize = 5),
                            column_names_gp = gpar(fontsize = 6),
@@ -87,12 +89,12 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
                            # legends
                            show_heatmap_legend = F,
                            heatmap_legend_param = list(color_bar = "continuous",
-                                                       title_gp = gpar(fontsize = 8),
+                                                       title_gp = gpar(fontsize = 6),
                                                        labels_gp = gpar(fontsize = 6),
                                                        grid_width = unit(2,"mm")),
                            # clustering
                            cluster_columns = F,
-                           clustering_distance_rows = "euclidean",
+                           clustering_distance_rows = "pearson",
                            cluster_row_slices = F,
                            show_row_dend = F,
                            #cluster_rows = row.clusters,
@@ -100,8 +102,8 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
                            split = row.clusters,
                            # labels
                            row_title_rot = 0,
-                           row_title_gp = gpar(fontsize=8),
-                           #row_title = NULL,
+                           row_title_gp = gpar(fontsize=7),
+                           row_title = NULL,
                            # size
                            width=ncol(proteins.z.scored)*0.2
   )
@@ -111,19 +113,20 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   
   gene.rowAnnot = rowAnnotation(gene.name = anno_mark(at = label.pos, 
                                                       labels = labels,
-                                                      labels_gp = gpar(fontsize = 6), 
+                                                      labels_gp = gpar(fontsize = 5), 
+                                                      link_gp = gpar(lwd = 0.5),
                                                       link_width = unit(4, "mm"),
                                                       padding = unit(0.5, "mm")))
   
   ht_list = heatmap.proteins + cluster.rowAnnot + gene.rowAnnot
   
-  gb_heatmap = grid.grabExpr(draw(ht_list), height=6, width=4)
+  gb_heatmap = grid.grabExpr(draw(ht_list), height=5, width=2.5)
 }
 
 ################################################################################
 # Profile plots of clusters
 ################################################################################
-plotClusterProfiles <- function(diff.proteins)
+plotClusterProfiles <- function(diff.proteins.averaged.condition.fc.mock)
 {
   num.in.cluster <- (diff.proteins.averaged.condition.fc.mock %>%
                        group_by(cluster) %>% 
@@ -136,7 +139,7 @@ plotClusterProfiles <- function(diff.proteins)
                                 group_by(Condition, cluster) %>% 
                                 summarise_at(c("FC"),  mean))
   
-  p <- (ggplot(diff.proteins, aes(x=Condition, 
+  p <- (ggplot(diff.proteins.averaged.condition.fc.mock, aes(x=Condition, 
                                          y=FC, 
                                          group=interaction(`Gene names`, cluster),
                                          color=as.factor(cluster),
@@ -144,9 +147,9 @@ plotClusterProfiles <- function(diff.proteins)
                                          linetype=as.factor(SARS_CoV_2)))
         
         + geom_line(size=0.5, alpha=0.75)
-        + geom_line(size=0.5, data=representative.profiles, aes(x=Condition, y=FC, group=as.factor(cluster), linetype="solid"), color="black")
+        + geom_line(size=0.5, data=representative.profiles, aes(x=Condition, y=FC, group=as.factor(cluster)), linetype="solid", color=grey)
         
-        + scale_y_continuous(name = "log2(Intensity / 4h Mock)", breaks=seq(-5,5,0.5))
+        + scale_y_continuous(name = "log2(fold-change) over 4h mock", breaks=seq(-5,5,1))
         + scale_x_discrete(name = "Hours post-infection")
         
         + facet_grid(cluster ~ ., scales="free", 
@@ -173,8 +176,8 @@ plotCoVProfiles <- function(proteins)
   
   p <- (ggplot(SARS2.prots, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
         
-        + geom_line(size=0.5, alpha=0.75, color=COV2.color)
-        + geom_point(size=1, color=COV2.color)
+        + geom_line(size=0.5, alpha=0.75, color=medium.grey)
+        + geom_point(size=1, color=medium.grey)
         + geom_text(size=2)
         
         + ggtitle("SARS-CoV-2 Proteins")
@@ -247,6 +250,7 @@ plotVolcano <- function(proteins)
 data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
 SARS.interactors <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
+H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
@@ -271,9 +275,10 @@ rep1.valid <- rowSums(select(filtered.data, all_of(counts.rep1)) > 1) > 0 #findi
 rep2.valid <- rowSums(select(filtered.data, all_of(counts.rep2)) > 1) > 0
 rep3.valid <- rowSums(select(filtered.data, all_of(counts.rep3)) > 1) > 0
 
-filtered.data <- select(filtered.data, "Gene names", "Protein IDs", all_of(reporter.intensities))
+filtered.data <- select(filtered.data, "Gene names", "Protein IDs", "Leading razor protein", all_of(reporter.intensities))
 
-valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) >= 2 | str_detect(`Protein IDs`, "SARS_CoV_2"))
+valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) >= 2)
+#valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) >= 2 | str_detect(`Protein IDs`, "SARS_CoV_2"))
 
 #NORMALIZE DATA 
 #1- take column sums of quantifications from each REP 
@@ -329,11 +334,16 @@ design <- filter(design, Condition !="Bridge") #have to remove Ref Channel in de
 quant.colnames <- paste(design$Condition, "Rep", design$Replicate)
 colnames(normalized.data) <- quant.colnames
 # add back names
-proteins <- cbind(select(valid.data, "Gene names", "Protein IDs"), normalized.data)
+proteins <- cbind(select(valid.data, "Gene names", "Protein IDs", "Leading razor protein"), normalized.data)
 # is it a SARS_CoV_2 protein?
 proteins$"SARS_CoV_2" <- ifelse(str_detect(proteins$`Protein IDs`, "SARS_CoV_2"), T, F)
 # is it an interactor of a SARS_CoV_2 protein?
 proteins <- left_join(proteins, SARS.interactors, by=c("Gene names" = "PreyGeneName"))
+# is it mutated?
+proteins <- left_join(proteins, H522.mutations, by=c("Gene names" = "GeneName"))
+# is it a cell surface or plasma membrane protein?
+proteins <- left_join(proteins, human_surface_and_plasma_membrane_protLevel, by=c("Leading razor protein" = "UniProt"))
+
 
 ################################################################################
 # Stats
@@ -382,17 +392,20 @@ clustering.results = ConsensusClusterPlus(t(proteins.z.scored.avg),
                                           reps=1000,
                                           pItem=0.8,
                                           pFeature=1,
-                                          clusterAlg="km",
-                                          distance="euclidean",
+                                          #clusterAlg="km",
+                                          #distance="euclidean",
+                                          clusterAlg="hc",
+                                          innerLinkage="complete",
+                                          finalLinkage="ward.D2",
+                                          distance="pearson",
                                           plot="pdf", 
-                                          title="figures/km_1000", 
+                                          title="figures/complete_ward2_pearson_1000", 
                                           seed=1262118388.71279)
 
-num.clusters = 9
+num.clusters = 8
 row.clusters <- clustering.results[[num.clusters]][["consensusClass"]]
 
 # reorder clusters
-# 7->1, 2->2, 3->3, 1->4, 4->5, 9->6, 5->7, 6->8, 8->9
 pos.1 <- which(row.clusters == 1)
 pos.2 <- which(row.clusters == 2)
 pos.3 <- which(row.clusters == 3)
@@ -401,16 +414,14 @@ pos.5 <- which(row.clusters == 5)
 pos.6 <- which(row.clusters == 6)
 pos.7 <- which(row.clusters == 7)
 pos.8 <- which(row.clusters == 8)
-pos.9 <- which(row.clusters == 9)
-row.clusters[pos.7] <- 1
-row.clusters[pos.2] <- 2
-row.clusters[pos.3] <- 3
+row.clusters[pos.6] <- 1
+row.clusters[pos.3] <- 2
+row.clusters[pos.2] <- 3
 row.clusters[pos.1] <- 4
-row.clusters[pos.4] <- 5
-row.clusters[pos.9] <- 6
+row.clusters[pos.8] <- 5
+row.clusters[pos.4] <- 6
 row.clusters[pos.5] <- 7
-row.clusters[pos.6] <- 8
-row.clusters[pos.8] <- 9
+row.clusters[pos.7] <- 8
 
 diff.proteins$cluster <- row.clusters
 proteins <- left_join(proteins, select(diff.proteins, "Protein IDs", "cluster"), by="Protein IDs")
@@ -462,28 +473,81 @@ F5.top <- arrangeGrob(figPCA, figCOVProfiles, figVolcano,
                   nrow = 1,
                   ncol = 3)
 F5.bottom <- arrangeGrob(figHeatmap, figClusterProfiles,
-                         widths = unit(c(4, 1.5, 2), "in"),
+                         widths = unit(c(2.5, 1, 1.5, 1.5), "in"),
                          nrow = 1,
-                         ncol = 3)
+                         ncol = 4)
 
 #grid.draw(F5.top)  # to view the plot
 saveFig(F5.top, "Figure5_top", 9, 7.5)
-saveFig(F5.bottom, "Figure5_bottom", 6, 7.5)
+saveFig(F5.bottom, "Figure5_bottom", 5, 7.5)
 
 ################################################################################
 # Work in progress
 ################################################################################
 
+first.name.universe <- separate(tibble(name=proteins$`Gene names`), name, "first.name", sep=";", remove=F, extra="drop")$first.name
+geneIds <- mapIds(org.Hs.eg.db, first.name.universe, 'ENTREZID', 'SYMBOL', multiVals = "first")
+first.name.universe <- geneIds[!is.na(geneIds)]
+
+msig <- msigdbr(species = "Homo sapiens") 
+  
+#for (gs.cat in c("H")) { 
+for (gs.cat in c("H", "C3", "C5")) {
+  msig.cat <- msig %>% filter(gs_cat == gs.cat)
+  if (gs.cat == "C2") {
+    msig.cat <- filter(msig, gs_cat == "C2" & gs_subcat == "CP:REACTOME")
+  } 
+  msig.cat <- msig.cat %>% select(gs_name, entrez_gene)
+  
+  for (cluster.id in 1:num.clusters) {
+    first.name.cluster <- separate(tibble(name=filter(diff.proteins, cluster == cluster.id)$`Gene names`), name, "first.name", sep=";", remove=F, extra="drop")$first.name
+    geneIds <- mapIds(org.Hs.eg.db, first.name.cluster, 'ENTREZID', 'SYMBOL', multiVals = "first")
+    first.name.cluster <- geneIds[!is.na(geneIds)]
+    
+    #em <- enrichGO(gene=first.name.cluster,
+    #              universe=first.name.universe,
+    #               OrgDb='org.Hs.eg.db',
+    #               ont="BP",
+    #               qvalueCutoff=0.05)
+    
+    #em.simp <- clusterProfiler::simplify(em, cutoff=0.8
+    #                                     , by="p.adjust", select_fun=min)
+    #if (nrow(em.simp) > 0) {
+    #  p <- barplot(em.simp, showCategory=100) + ggtitle(paste(cluster.id))
+    #  saveFig(p, paste("simp", cluster.id, gs.cat), 15, 17.5)
+    #}
+    
+    em <- enricher(gene=first.name.cluster,
+                   universe=first.name.universe,
+                   TERM2GENE=msig.cat,
+                   qvalueCutoff=0.05)
+    
+    #em.sig <- em@result %>% filter(qvalue <= 0.05)
+    
+    #print(nrow(em.sig))
+    
+    if (!is.null(em) & nrow(em) > 0) {
+      p <- barplot(em, showCategory=100) + ggtitle(paste(cluster.id))
+      saveFig(p, paste("enrichment cluster", cluster.id, gs.cat), 15, 17.5)
+    }
+  }
+}
+
+em <- enrichGO(gene=first.name.cluster,
+               universe=first.name.universe,
+               OrgDb='org.Hs.eg.db',
+               ont="BP",
+               qvalueCutoff=0.05)
+
+
+
+
+#geneIds <- mapIds(org.Hs.eg.db, first.name.cluster$first.name, 'ENTREZID', 'SYMBOL', multiVals = "first")
+#geneIds <- geneIds[!is.na(geneIds)]
+
+
 #colnames(proteins.annot)[8:31] <- paste(design$Condition, "Rep", design$Replicate)
 #write_tsv(proteins.annot, "~/Box/H522-paperoutline/Figures/Figure5/proteinGroups_log2_relative_to_bridge.tsv")
-
-
-#sampleGOdata.1 <- new("topGOdata",
-#                    description = "Simple session", ontology = "BP",
-#                    allGenes = proteins.annot$Gene.names, geneSel = diff.proteins$Gene.names,
-#                    nodeSize = 10,
-#                    annot = annFUN.org)
-
 #write_tsv(diff.proteins.melted, "~/Downloads/clusters.tsv")
 
 ################################################################################
@@ -493,4 +557,109 @@ write_tsv(proteins, here("data_processed/proteinsNormedToBridge.txt"))
 
 
 
+
+
+
+################################################################################
+# Temp exploration
+################################################################################
+# proteins <- select(proteins, -c('logFC', 'adj.P.Val', 'AveExpr', 't', 'P.Value', 'B'))
+# 
+# threshold <- log(2)
+# 
+# # 4hr mock vs 4hr
+# fit <- lmFit(select(proteins, 
+#                     grep("^Mock - 4 hr", quant.colnames, value = T), 
+#                     grep("^4 hr", quant.colnames, value = T)),
+#              model.matrix(~ c(rep("Mock - 4 hr", 3), rep("4 hr", 3))))
+# 
+# fit <- eBayes(fit)
+# proteins.stats.4hr <- topTable(fit, n=nrow(proteins))
+# proteins.4hr <- cbind(proteins.stats.4hr, proteins[as.numeric(rownames(proteins.stats.4hr)), ])
+# 
+# diff.proteins.4hr <- proteins.4hr %>% filter(abs(`logFC`) >= threshold & adj.P.Val <= 0.05)
+# 
+# # 4hr vs 12 hr
+# fit <- lmFit(select(proteins, 
+#                     grep("^4 hr", quant.colnames, value = T), 
+#                     grep("^12 hr", quant.colnames, value = T)),
+#              model.matrix(~ c(rep("4 hr", 3), rep("12 hr", 3))))
+# 
+# fit <- eBayes(fit)
+# proteins.stats.12hr <- topTable(fit, n=nrow(proteins))
+# proteins.12hr <- cbind(proteins.stats.12hr, proteins[as.numeric(rownames(proteins.stats.12hr)), ])
+# 
+# diff.proteins.12hr <- proteins.12hr %>% filter(abs(`logFC`) >= threshold & adj.P.Val <= 0.05)
+# 
+# # 12hr vs 24 hr
+# fit <- lmFit(select(proteins, 
+#                     grep("^12 hr", quant.colnames, value = T), 
+#                     grep("^24 hr", quant.colnames, value = T)),
+#              model.matrix(~ c(rep("12 hr", 3), rep("24 hr", 3))))
+# 
+# fit <- eBayes(fit)
+# proteins.stats.24hr <- topTable(fit, n=nrow(proteins))
+# proteins.24hr <- cbind(proteins.stats.24hr, proteins[as.numeric(rownames(proteins.stats.24hr)), ])
+# 
+# diff.proteins.24hr <- proteins.24hr %>% filter(abs(`logFC`) >= threshold & adj.P.Val <= 0.05)
+# 
+# # 24hr vs 48 hr
+# fit <- lmFit(select(proteins, 
+#                     grep("^24 hr", quant.colnames, value = T), 
+#                     grep("^48 hr", quant.colnames, value = T)),
+#              model.matrix(~ c(rep("24 hr", 3), rep("48 hr", 3))))
+# 
+# fit <- eBayes(fit)
+# proteins.stats.48hr <- topTable(fit, n=nrow(proteins))
+# proteins.48hr <- cbind(proteins.stats.48hr, proteins[as.numeric(rownames(proteins.stats.48hr)), ])
+# 
+# diff.proteins.48hr <- proteins.48hr %>% filter(abs(`logFC`) >= threshold & adj.P.Val <= 0.05)
+# 
+# # 48hr vs 72 hr
+# fit <- lmFit(select(proteins, 
+#                     grep("^48 hr", quant.colnames, value = T), 
+#                     grep("^72 hr", quant.colnames, value = T)),
+#              model.matrix(~ c(rep("48 hr", 3), rep("72 hr", 3))))
+# 
+# fit <- eBayes(fit)
+# proteins.stats.72hr <- topTable(fit, n=nrow(proteins))
+# proteins.72hr <- cbind(proteins.stats.72hr, proteins[as.numeric(rownames(proteins.stats.72hr)), ])
+# 
+# diff.proteins.72hr <- proteins.72hr %>% filter(abs(`logFC`) >= threshold & adj.P.Val <= 0.05)
+# 
+# # 72hr vs 96 hr
+# fit <- lmFit(select(proteins, 
+#                     grep("^72 hr", quant.colnames, value = T), 
+#                     grep("^96 hr", quant.colnames, value = T)),
+#              model.matrix(~ c(rep("72 hr", 3), rep("96 hr", 3))))
+# 
+# fit <- eBayes(fit)
+# proteins.stats.96hr <- topTable(fit, n=nrow(proteins))
+# proteins.96hr <- cbind(proteins.stats.96hr, proteins[as.numeric(rownames(proteins.stats.96hr)), ])
+# 
+# diff.proteins.96hr <- proteins.96hr %>% filter(abs(`logFC`) >= threshold & adj.P.Val <= 0.05)
+# 
+# 
+# diff.union <- rbind(diff.proteins.4hr, diff.proteins.12hr, diff.proteins.24hr, diff.proteins.48hr, diff.proteins.72hr, diff.proteins.96hr)
+# 
+# diff.venn <- full_join(diff.union, diff.proteins, by="Gene names")
+# both <- sum(!is.na(diff.venn$`Protein IDs.x`) & !is.na(diff.venn$`Protein IDs.y`))
+# print(sum(!is.na(diff.venn$`Protein IDs.x`)) - both) # pairwise only
+# print(sum(!is.na(diff.venn$`Protein IDs.y`)) - both) # 96 only
+# print(both)
+# pairwise.only <- filter(diff.venn, is.na(`Protein IDs.y`))
+# 
+# library(timecourse)
+# 
+# timecourse.infected.data <- select(normalized.data, -grep("Mock", colnames(normalized.data), value=T))
+# assay.1 <- rep(c("1", "2", "3"), each = 6)
+# time.grp.1 <- rep(1:6, 3)
+# reps <- rep(3, nrow(timecourse.infected.data))
+# timecourse.infected.results <- mb.long(timecourse.infected.data, method="1D", times=6, reps=reps, rep.grp = assay.1, time.grp = time.grp.1) 
+# # get top 265
+# plotProfile(timecourse.infected.results, type="b", gnames=gnames, legloc=c(2,15), pch=c("1","2","3"), xlab="Time Point", rank = 1, col = c("pink", "black", "green")) 
+# #use gid= to look for a specific protein's profile 
+# sig.timecourse <- tibble("Gene names" = gnames[order(-timecourse.infected.results[["HotellingT2"]])[1:265]])
+# sig.timecourse <- left_join(sig.timecourse, diff.proteins)
+# print(sig.timecourse$`Gene names`[which(is.na(sig.timecourse$`B`))])
 
