@@ -246,7 +246,8 @@ plotVolcano <- function(proteins)
 ################################################################################
 data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
-SARS.interactors <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
+SARS.interactors.krogan <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait.Krogan", "PreyGeneName"))
+SARS.interactors.mann <- select(read_csv("Projects/Current/COVID-19/Public MS Data/Mann_Interactors_Caco2.csv"), c("Bait.Mann", "gene_name"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
@@ -333,8 +334,14 @@ proteins <- cbind(select(valid.data, "Gene names", "Protein IDs"), normalized.da
 # is it a SARS_CoV_2 protein?
 proteins$"SARS_CoV_2" <- ifelse(str_detect(proteins$`Protein IDs`, "SARS_CoV_2"), T, F)
 # is it an interactor of a SARS_CoV_2 protein?
-proteins <- left_join(proteins, SARS.interactors, by=c("Gene names" = "PreyGeneName"))
-
+proteins <- left_join(proteins, SARS.interactors.krogan, by=c("Gene names" = "PreyGeneName"))
+proteins <- left_join(proteins, SARS.interactors.mann, by=c("Gene names" = "gene_name"))
+proteins$Bait <- str_c(str_replace_na(proteins$Bait.Krogan, replacement = ""), 
+                       str_replace_na(proteins$Bait.Mann, replacement = ""), sep = ";")
+proteins$Bait <- apply(proteins, 1, function(x) {
+  y <- c(x["Bait.Krogan"], x["Bait.Mann"])
+  str_c(base::unique(y[!is.na(y)]), collapse = ";")})
+proteins <- proteins %>% mutate_all(na_if,"") #replace "" with NAs in Bait Column 
 ################################################################################
 # Stats
 ################################################################################
