@@ -247,7 +247,7 @@ plotVolcano <- function(proteins)
 data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
 SARS.interactors.krogan <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait.Krogan", "PreyGeneName"))
-SARS.interactors.mann <- select(read_csv("Projects/Current/COVID-19/Public MS Data/Mann_Interactors_Caco2.csv"), c("Bait.Mann", "gene_name"))
+SARS.interactors.mann <- select(read_csv(here("annotations/Mann_Interactors_Caco2.csv")), c("Bait.Mann", "gene_name"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
@@ -342,6 +342,14 @@ proteins$Bait <- apply(proteins, 1, function(x) {
   y <- c(x["Bait.Krogan"], x["Bait.Mann"])
   str_c(base::unique(y[!is.na(y)]), collapse = ";")})
 proteins <- proteins %>% mutate_all(na_if,"") #replace "" with NAs in Bait Column 
+
+# interferon response 
+interferon.response.alpha <- read_csv(here("annotations/interferon_response_alpha.txt"))
+interferon.response.beta <- read_csv(here("annotations/interferon_response_beta.txt"))
+interferon.response.gamma <-  read_csv(here("annotations/interferon_response_gamma.txt"))
+interferon.regulation.type1 <-  read_csv(here("annotations/regulation_of_type_I_interferon_mediated_signaling_pathway.txt"))
+interferon.regulation.type2.immune.response <-  read_csv(here("annotations/regulation_type_2_immune_response.txt"))
+antigen.processing.presentation <- read_csv(here("annotations/antigen_processing_and_presentation.txt"))
 ################################################################################
 # Stats
 ################################################################################
