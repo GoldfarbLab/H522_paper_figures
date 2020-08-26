@@ -6,6 +6,7 @@ library(msigdbr)
 library(ComplexHeatmap)
 library(ConsensusClusterPlus)
 library(org.Hs.eg.db)
+library(annotate)
 library(CellSurfaceTools) # install.packages('devtools') # devtools::install_github("GoldfarbLab/CellSurfaceTools")
 
 source(here("common.R"))
@@ -344,6 +345,28 @@ proteins <- left_join(proteins, H522.mutations, by=c("Gene names" = "GeneName"))
 # is it a cell surface or plasma membrane protein?
 proteins <- left_join(proteins, human_surface_and_plasma_membrane_protLevel, by=c("Leading razor protein" = "UniProt"))
 
+# update out of date gene names
+proteins$`Gene names`[proteins$`Gene names` == "FAM64A"] = "PIMREG"
+proteins$`Gene names`[proteins$`Gene names` == "FAM92A1"] = "FAM92A"
+proteins$`Gene names`[proteins$`Gene names` == "KIAA0101"] = "PCLAF"
+proteins$`Gene names`[proteins$`Gene names` == "C10orf35"] = "FAM241B"
+proteins$`Gene names`[proteins$`Gene names` == "MB21D1"] = "CGAS"
+proteins$`Gene names`[proteins$`Gene names` == "RNF219"] = "OBI1"
+proteins$`Gene names`[proteins$`Gene names` == "C11orf84"] = "SPINDOC"
+proteins$`Gene names`[proteins$`Gene names` == "WHSC1"] = "NSD3"
+proteins$`Gene names`[proteins$`Gene names` == "C19orf66"] = "SHFL"
+proteins$`Gene names`[proteins$`Gene names` == "MFI2"] = "MELTF"
+proteins$`Gene names`[proteins$`Gene names` == "Q6ZT62-2;Q6ZT62"] = "BARGIN"
+proteins$`Gene names`[proteins$`Gene names` == "C17orf104"] = "MEIOC"
+proteins$`Gene names`[proteins$`Gene names` == "LEPREL2"] = "P3H3"
+proteins$`Gene names`[proteins$`Gene names` == "FAM129A"] = "NIBAN1"
+proteins$`Gene names`[proteins$`Gene names` == "SELH"] = "SELENOH"
+proteins$`Gene names`[proteins$`Gene names` == "FAM127A;FAM127C;FAM127B"] = "RTL8C"
+proteins$`Gene names`[proteins$`Gene names` == "MUT"] = "MMUT"
+proteins$`Gene names`[proteins$`Gene names` == "LOH12CR1"] = "BORCS5"
+proteins$`Gene names`[proteins$`Gene names` == "CTGF"] = "CCN2"
+proteins$`Gene names`[proteins$`Gene names` == "CASC5"] = "KNL1"
+
 
 ################################################################################
 # Stats
@@ -473,77 +496,97 @@ F5.top <- arrangeGrob(figPCA, figCOVProfiles, figVolcano,
                   nrow = 1,
                   ncol = 3)
 F5.bottom <- arrangeGrob(figHeatmap, figClusterProfiles,
-                         widths = unit(c(2.5, 1, 1.5, 1.5), "in"),
+                         widths = unit(c(2.2, 0.95, 1.35, 1.35), "in"),
                          nrow = 1,
                          ncol = 4)
 
 #grid.draw(F5.top)  # to view the plot
-saveFig(F5.top, "Figure5_top", 9, 7.5)
-saveFig(F5.bottom, "Figure5_bottom", 5, 7.5)
+saveFig(F5.top, "Figure5_top", 9, 6.85)
+saveFig(F5.bottom, "Figure5_bottom", 5, 6.85)
 
 ################################################################################
 # Work in progress
 ################################################################################
 
 first.name.universe <- separate(tibble(name=proteins$`Gene names`), name, "first.name", sep=";", remove=F, extra="drop")$first.name
-geneIds <- mapIds(org.Hs.eg.db, first.name.universe, 'ENTREZID', 'SYMBOL', multiVals = "first")
-first.name.universe <- geneIds[!is.na(geneIds)]
+geneIds.universe <- mapIds(org.Hs.eg.db, first.name.universe, 'ENTREZID', 'SYMBOL', multiVals = "first")
+geneIds.universe <- geneIds.universe[!is.na(geneIds.universe)]
 
-msig <- msigdbr(species = "Homo sapiens") 
+msig <- msigdbr(species = "Homo sapiens") %>% filter(gs_cat == "H" | (gs_cat == "C2" & gs_subcat == "CP:REACTOME") | (gs_cat == "C5" & gs_subcat %in% c("BP", "CC")))  %>% select(gs_name, entrez_gene)
+enrichment.results <- tibble()
+
+for (cluster.id in 1:num.clusters) {
+  first.name.cluster <- separate(tibble(name=filter(diff.proteins, cluster == cluster.id)$`Gene names`), name, "first.name", sep=";", remove=F, extra="drop")$first.name
+  geneIds.cluster <- mapIds(org.Hs.eg.db, first.name.cluster, 'ENTREZID', 'SYMBOL', multiVals = "first")
   
-#for (gs.cat in c("H")) { 
-for (gs.cat in c("H", "C3", "C5")) {
-  msig.cat <- msig %>% filter(gs_cat == gs.cat)
-  if (gs.cat == "C2") {
-    msig.cat <- filter(msig, gs_cat == "C2" & gs_subcat == "CP:REACTOME")
-  } 
-  msig.cat <- msig.cat %>% select(gs_name, entrez_gene)
+  em <- enricher(gene=geneIds.cluster,
+                 universe=geneIds.universe,
+                 TERM2GENE=msig,
+                 minGSSize = 10,
+                 qvalueCutoff=0.1)
   
-  for (cluster.id in 1:num.clusters) {
-    first.name.cluster <- separate(tibble(name=filter(diff.proteins, cluster == cluster.id)$`Gene names`), name, "first.name", sep=";", remove=F, extra="drop")$first.name
-    geneIds <- mapIds(org.Hs.eg.db, first.name.cluster, 'ENTREZID', 'SYMBOL', multiVals = "first")
-    first.name.cluster <- geneIds[!is.na(geneIds)]
-    
-    #em <- enrichGO(gene=first.name.cluster,
-    #              universe=first.name.universe,
-    #               OrgDb='org.Hs.eg.db',
-    #               ont="BP",
-    #               qvalueCutoff=0.05)
-    
-    #em.simp <- clusterProfiler::simplify(em, cutoff=0.8
-    #                                     , by="p.adjust", select_fun=min)
-    #if (nrow(em.simp) > 0) {
-    #  p <- barplot(em.simp, showCategory=100) + ggtitle(paste(cluster.id))
-    #  saveFig(p, paste("simp", cluster.id, gs.cat), 15, 17.5)
-    #}
-    
-    em <- enricher(gene=first.name.cluster,
-                   universe=first.name.universe,
-                   TERM2GENE=msig.cat,
-                   qvalueCutoff=0.05)
-    
-    #em.sig <- em@result %>% filter(qvalue <= 0.05)
-    
-    #print(nrow(em.sig))
-    
-    if (!is.null(em) & nrow(em) > 0) {
-      p <- barplot(em, showCategory=100) + ggtitle(paste(cluster.id))
-      saveFig(p, paste("enrichment cluster", cluster.id, gs.cat), 15, 17.5)
+  if (!is.null(em)) {
+    result <- em@result
+    result$cluster <- cluster.id
+    result <- filter(result, qvalue <= 0.1)
+    if (nrow(result) > 0) {
+      result$genes <- apply(result, 1, function(x) {str_c(sort(getSYMBOL(unlist(str_split(x[["geneID"]],"/")), data='org.Hs.eg')),collapse=",")} )
+      enrichment.results <- rbind(enrichment.results, result)
     }
   }
 }
 
-em <- enrichGO(gene=first.name.cluster,
-               universe=first.name.universe,
-               OrgDb='org.Hs.eg.db',
-               ont="BP",
-               qvalueCutoff=0.05)
+# convert to matrix format
+enrichment.results = pivot_wider(enrichment.results, id_cols = Description, names_from = cluster, values_from=c(pvalue, p.adjust, qvalue, Count, GeneRatio, BgRatio, genes))
+
+enrichment.results$category <- ""
+enrichment.results$category[str_detect(enrichment.results$Description, "^HALLMARK")] <- "Hallmark"
+enrichment.results$category[str_detect(enrichment.results$Description, "^REACTOME")] <- "Reactome"
+enrichment.results$category[str_detect(enrichment.results$Description, "^GO")] <- "GO"
+
+write_tsv(filter(enrichment.results, category == "Hallmark"), str_c("~/Downloads/enrichment_hallmark.tsv"), na = "")
+write_tsv(filter(enrichment.results, category == "Reactome"), str_c("~/Downloads/enrichment_reactome.tsv"), na = "")
+write_tsv(filter(enrichment.results, category == "GO"), str_c("~/Downloads/enrichment_GO.tsv"), na = "")
+
+enrichment.results.pruned <- filter(enrichment.results, Description %in% c("REACTOME_CELL_CYCLE_CHECKPOINTS", 
+                                                                           "REACTOME_SIGNALING_BY_RHO_GTPASES", 
+                                                                           "REACTOME_DNA_REPAIR", 
+                                                                           "REACTOME_DNA_REPLICATION", 
+                                                                           "REACTOME_REGULATION_OF_TP53_ACTIVITY", 
+                                                                           "REACTOME_SUMOYLATION",
+                                                                           
+                                                                           "GO_INTRINSIC_COMPONENT_OF_PLASMA_MEMBRANE", 
+                                                                           "GO_SPINDLE", 
+                                                                           "GO_ANAPHASE_PROMOTING_COMPLEX", 
+                                                                           "GO_CULLIN_RING_UBIQUITIN_LIGASE_COMPLEX", 
+                                                                           "GO_UBIQUITIN_LIGASE_COMPLEX", 
+                                                                           "GO_REPLICATION_FORK", 
+                                                                           "GO_PHAGOCYTIC_VESICLE_MEMBRANE", 
+                                                                           "GO_ENDOCYTIC_VESICLE_MEMBRANE", 
+                                                                           "GO_ORGANELLE_ENVELOPE_LUMEN",
+                                                                           
+                                                                           "HALLMARK_INTERFERON_ALPHA_RESPONSE", 
+                                                                           "HALLMARK_INTERFERON_GAMMA_RESPONSE"))
+
+enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "intrinsic component of plasma membrane")] <- "Plasma Membrane"
+enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_INTERFERON_ALPHA_RESPONSE")] <- "Interferon alpha signaling"
+enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_INTERFERON_GAMMA_RESPONSE")] <- "Interferon gamma signaling"
+enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_TNFA_SIGNALING_VIA_NFKB")] <- "TNFA signaling via NFKB"
+
+num.in.cluster <- (diff.proteins.averaged.condition.fc.mock %>%
+                     group_by(cluster) %>% 
+                     summarise(n=n() / (nlevels(Condition)-1)))
+
+enrichment.results.pruned$ratio <- enrichment.results.pruned$Count / num.in.cluster$n[enrichment.results.pruned$cluster]
+
+print(ggplot(data = enrichment.results.pruned, aes(x=as.factor(cluster), y=Description, size=Count, color=-log10(qvalue)))
+      + geom_point()
+      + xlab("Cluster")
+      + ylab("")
+      + theme.basic
+      + theme(aspect.ratio = NULL, axis.title.y=element_blank()))
 
 
-
-
-#geneIds <- mapIds(org.Hs.eg.db, first.name.cluster$first.name, 'ENTREZID', 'SYMBOL', multiVals = "first")
-#geneIds <- geneIds[!is.na(geneIds)]
 
 
 #colnames(proteins.annot)[8:31] <- paste(design$Condition, "Rep", design$Replicate)
