@@ -247,7 +247,7 @@ plotVolcano <- function(proteins)
 data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
 SARS.interactors.krogan <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait.Krogan", "PreyGeneName"))
-SARS.interactors.mann <- select(read_csv(here("annotations/Mann_Interactors_Caco2.csv")), c("Bait.Mann", "gene_name"))
+SARS.interactors.mann <- select(read_csv("annotations/Mann_Interactors_Caco2.csv"), c("Bait.Mann", "gene_name"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
@@ -350,6 +350,12 @@ interferon.response.gamma <-  read_csv(here("annotations/interferon_response_gam
 interferon.regulation.type1 <-  read_csv(here("annotations/regulation_of_type_I_interferon_mediated_signaling_pathway.txt"))
 interferon.regulation.type2.immune.response <-  read_csv(here("annotations/regulation_type_2_immune_response.txt"))
 antigen.processing.presentation <- read_csv(here("annotations/antigen_processing_and_presentation.txt"))
+
+summarized.gene.names <- aggregate(proteins["Bait"], proteins["Gene names"], 
+               FUN = function(X) paste(unique(X), collapse=", "))
+
+
+proteins <- left_join(proteins, interferon.response.alpha, by=c("Gene names" = "GO_CELLULAR_RESPONSE_INTERFERON_ALPHA"))
 ################################################################################
 # Stats
 ################################################################################
