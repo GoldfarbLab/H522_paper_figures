@@ -248,10 +248,11 @@ plotVolcano <- function(proteins)
 ################################################################################
 # Read data
 ################################################################################
-data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
+data <- read_tsv(here("data_processed/requantifiedProteins_new.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
 SARS.interactors <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
 H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
+uniprot.mapping <- read_tsv(here("annotations/uniprot_mapping.tsv.zip"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
@@ -336,6 +337,10 @@ quant.colnames <- paste(design$Condition, "Rep", design$Replicate)
 colnames(normalized.data) <- quant.colnames
 # add back names
 proteins <- cbind(select(valid.data, "Gene names", "Protein IDs", "Leading razor protein"), normalized.data)
+# remove isoform suffix
+proteins <- separate(proteins, "Leading razor protein", c("Leading canonical"), sep="-", remove=F, extra="drop")
+# fill Entrez GeneID
+proteins <- left_join(proteins, uniprot.mapping, by=c("Leading canonical" = "UniProt"))
 # is it a SARS_CoV_2 protein?
 proteins$"SARS_CoV_2" <- ifelse(str_detect(proteins$`Protein IDs`, "SARS_CoV_2"), T, F)
 # is it an interactor of a SARS_CoV_2 protein?
@@ -343,30 +348,7 @@ proteins <- left_join(proteins, SARS.interactors, by=c("Gene names" = "PreyGeneN
 # is it mutated?
 proteins <- left_join(proteins, H522.mutations, by=c("Gene names" = "GeneName"))
 # is it a cell surface or plasma membrane protein?
-proteins <- left_join(proteins, human_surface_and_plasma_membrane_protLevel, by=c("Leading razor protein" = "UniProt"))
-
-# update out of date gene names
-proteins$`Gene names`[proteins$`Gene names` == "FAM64A"] = "PIMREG"
-proteins$`Gene names`[proteins$`Gene names` == "FAM92A1"] = "FAM92A"
-proteins$`Gene names`[proteins$`Gene names` == "KIAA0101"] = "PCLAF"
-proteins$`Gene names`[proteins$`Gene names` == "C10orf35"] = "FAM241B"
-proteins$`Gene names`[proteins$`Gene names` == "MB21D1"] = "CGAS"
-proteins$`Gene names`[proteins$`Gene names` == "RNF219"] = "OBI1"
-proteins$`Gene names`[proteins$`Gene names` == "C11orf84"] = "SPINDOC"
-proteins$`Gene names`[proteins$`Gene names` == "WHSC1"] = "NSD3"
-proteins$`Gene names`[proteins$`Gene names` == "C19orf66"] = "SHFL"
-proteins$`Gene names`[proteins$`Gene names` == "MFI2"] = "MELTF"
-proteins$`Gene names`[proteins$`Gene names` == "Q6ZT62-2;Q6ZT62"] = "BARGIN"
-proteins$`Gene names`[proteins$`Gene names` == "C17orf104"] = "MEIOC"
-proteins$`Gene names`[proteins$`Gene names` == "LEPREL2"] = "P3H3"
-proteins$`Gene names`[proteins$`Gene names` == "FAM129A"] = "NIBAN1"
-proteins$`Gene names`[proteins$`Gene names` == "SELH"] = "SELENOH"
-proteins$`Gene names`[proteins$`Gene names` == "FAM127A;FAM127C;FAM127B"] = "RTL8C"
-proteins$`Gene names`[proteins$`Gene names` == "MUT"] = "MMUT"
-proteins$`Gene names`[proteins$`Gene names` == "LOH12CR1"] = "BORCS5"
-proteins$`Gene names`[proteins$`Gene names` == "CTGF"] = "CCN2"
-proteins$`Gene names`[proteins$`Gene names` == "CASC5"] = "KNL1"
-
+proteins <- left_join(proteins, human_surface_and_plasma_membrane_protLevel, by=c("Leading canonical" = "UniProt"))
 
 ################################################################################
 # Stats
@@ -411,9 +393,9 @@ proteins.z.scored <- t(scale(t(as.matrix(select(diff.proteins, all_of(quant.coln
 rownames(proteins.z.scored) <- diff.proteins$`Gene names`
 
 clustering.results = ConsensusClusterPlus(t(proteins.z.scored.avg),
-                                          maxK=15,
+                                          maxK=8,
                                           reps=1000,
-                                          pItem=0.8,
+                                          pItem=0.65,
                                           pFeature=1,
                                           #clusterAlg="km",
                                           #distance="euclidean",
@@ -508,27 +490,25 @@ saveFig(F5.bottom, "Figure5_bottom", 5, 6.85)
 # Work in progress
 ################################################################################
 
-first.name.universe <- separate(tibble(name=proteins$`Gene names`), name, "first.name", sep=";", remove=F, extra="drop")$first.name
-geneIds.universe <- mapIds(org.Hs.eg.db, first.name.universe, 'ENTREZID', 'SYMBOL', multiVals = "first")
-geneIds.universe <- geneIds.universe[!is.na(geneIds.universe)]
+geneIds.universe <- as.character(proteins$First_GeneID[which(!is.na(proteins$First_GeneID))])
 
 msig <- msigdbr(species = "Homo sapiens") %>% filter(gs_cat == "H" | (gs_cat == "C2" & gs_subcat == "CP:REACTOME") | (gs_cat == "C5" & gs_subcat %in% c("BP", "CC")))  %>% select(gs_name, entrez_gene)
 enrichment.results <- tibble()
 
 for (cluster.id in 1:num.clusters) {
-  first.name.cluster <- separate(tibble(name=filter(diff.proteins, cluster == cluster.id)$`Gene names`), name, "first.name", sep=";", remove=F, extra="drop")$first.name
-  geneIds.cluster <- mapIds(org.Hs.eg.db, first.name.cluster, 'ENTREZID', 'SYMBOL', multiVals = "first")
-  
+  geneIds.cluster <- filter(diff.proteins, cluster == cluster.id)$First_GeneID
+  geneIds.cluster <- geneIds.cluster[which(!is.na(geneIds.cluster))]
+
   em <- enricher(gene=geneIds.cluster,
                  universe=geneIds.universe,
                  TERM2GENE=msig,
                  minGSSize = 10,
-                 qvalueCutoff=0.1)
+                 qvalueCutoff=0.05)
   
   if (!is.null(em)) {
     result <- em@result
     result$cluster <- cluster.id
-    result <- filter(result, qvalue <= 0.1)
+    result <- filter(result, qvalue <= 0.05)
     if (nrow(result) > 0) {
       result$genes <- apply(result, 1, function(x) {str_c(sort(getSYMBOL(unlist(str_split(x[["geneID"]],"/")), data='org.Hs.eg')),collapse=",")} )
       enrichment.results <- rbind(enrichment.results, result)
@@ -537,16 +517,18 @@ for (cluster.id in 1:num.clusters) {
 }
 
 # convert to matrix format
-enrichment.results = pivot_wider(enrichment.results, id_cols = Description, names_from = cluster, values_from=c(pvalue, p.adjust, qvalue, Count, GeneRatio, BgRatio, genes))
+#enrichment.results_wide = pivot_wider(enrichment.results, id_cols = Description, names_from = cluster, values_from=c(pvalue, p.adjust, qvalue, Count, GeneRatio, BgRatio, genes))
 
 enrichment.results$category <- ""
 enrichment.results$category[str_detect(enrichment.results$Description, "^HALLMARK")] <- "Hallmark"
 enrichment.results$category[str_detect(enrichment.results$Description, "^REACTOME")] <- "Reactome"
 enrichment.results$category[str_detect(enrichment.results$Description, "^GO")] <- "GO"
 
-write_tsv(filter(enrichment.results, category == "Hallmark"), str_c("~/Downloads/enrichment_hallmark.tsv"), na = "")
-write_tsv(filter(enrichment.results, category == "Reactome"), str_c("~/Downloads/enrichment_reactome.tsv"), na = "")
-write_tsv(filter(enrichment.results, category == "GO"), str_c("~/Downloads/enrichment_GO.tsv"), na = "")
+
+
+#write_tsv(filter(enrichment.results, category == "Hallmark"), str_c("~/Downloads/enrichment_hallmark.tsv"), na = "")
+#write_tsv(filter(enrichment.results, category == "Reactome"), str_c("~/Downloads/enrichment_reactome.tsv"), na = "")
+#write_tsv(filter(enrichment.results, category == "GO"), str_c("~/Downloads/enrichment_GO.tsv"), na = "")
 
 enrichment.results.pruned <- filter(enrichment.results, Description %in% c("REACTOME_CELL_CYCLE_CHECKPOINTS", 
                                                                            "REACTOME_SIGNALING_BY_RHO_GTPASES", 
@@ -554,6 +536,7 @@ enrichment.results.pruned <- filter(enrichment.results, Description %in% c("REAC
                                                                            "REACTOME_DNA_REPLICATION", 
                                                                            "REACTOME_REGULATION_OF_TP53_ACTIVITY", 
                                                                            "REACTOME_SUMOYLATION",
+                                                                           "REACTOME_NUCLEAR_SIGNALING_BY_ERBB4",
                                                                            
                                                                            "GO_INTRINSIC_COMPONENT_OF_PLASMA_MEMBRANE", 
                                                                            "GO_SPINDLE", 
@@ -564,9 +547,15 @@ enrichment.results.pruned <- filter(enrichment.results, Description %in% c("REAC
                                                                            "GO_PHAGOCYTIC_VESICLE_MEMBRANE", 
                                                                            "GO_ENDOCYTIC_VESICLE_MEMBRANE", 
                                                                            "GO_ORGANELLE_ENVELOPE_LUMEN",
+                                                                           "GO_MICROTUBULE_CYTOSKELETON_ORGANIZATION",
+                                                                           "GO_ANTIGEN_PROCESSING_AND_PRESENTATION_OF_ENDOGENOUS_ANTIGEN",
+                                                                           "GO_INTRINSIC_COMPONENT_OF_ENDOPLASMIC_RETICULUM_MEMBRANE",
+                                                                           "GO_SEMAPHORIN_PLEXIN_SIGNALING_PATHWAY",
+                                                                           "GO_REGULATION_OF_B_CELL_PROLIFERATION",
                                                                            
                                                                            "HALLMARK_INTERFERON_ALPHA_RESPONSE", 
-                                                                           "HALLMARK_INTERFERON_GAMMA_RESPONSE"))
+                                                                           "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+                                                                           "HALLMARK_MTORC1_SIGNALING"))
 
 enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "intrinsic component of plasma membrane")] <- "Plasma Membrane"
 enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_INTERFERON_ALPHA_RESPONSE")] <- "Interferon alpha signaling"
