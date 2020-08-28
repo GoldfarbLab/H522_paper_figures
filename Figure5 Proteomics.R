@@ -247,7 +247,7 @@ plotVolcano <- function(proteins)
 data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
 SARS.interactors.krogan <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait.Krogan", "PreyGeneName"))
-SARS.interactors.mann <- select(read_csv("Projects/Current/COVID-19/Public MS Data/Mann_Interactors_Caco2.csv"), c("Bait.Mann", "gene_name"))
+SARS.interactors.mann <- select(read_csv("annotations/Mann_Interactors_Caco2.csv"), c("Bait.Mann", "gene_name"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
