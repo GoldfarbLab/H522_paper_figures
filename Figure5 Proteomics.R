@@ -248,7 +248,7 @@ plotVolcano <- function(proteins)
 ################################################################################
 # Read data
 ################################################################################
-data <- read_tsv(here("data_processed/requantifiedProteins_new.txt"), guess_max=10000)
+data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
 SARS.interactors <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
 H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
