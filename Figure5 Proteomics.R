@@ -1,15 +1,18 @@
 library(here)
 library(limma)
-library(topGO)
-library(timecourse)
+library(clusterProfiler)
+library(enrichplot)
+library(msigdbr)
 library(ComplexHeatmap)
-library(cluster)
 library(ConsensusClusterPlus)
+library(org.Hs.eg.db)
+library(annotate)
+library(CellSurfaceTools) # install.packages('devtools') # devtools::install_github("GoldfarbLab/CellSurfaceTools")
 
 source(here("common.R"))
 select <- get(x = "select", pos = "package:dplyr") # deal with function masking
 
-source(here("RequantifyProteomics.R")) # only necessary to run once
+#source(here("RequantifyProteomics.R")) # only necessary to run once
 
 log.stats.threshold = -log10(0.05)
 log.fc.threshold = log2(1.3)
@@ -77,7 +80,7 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   heatmap.proteins <- Heatmap(proteins.z.scored,
                            # labels
                            column_title = paste("Differentially Expressed Proteins\nn = ", nrow(proteins.z.scored), sep=""),
-                           column_title_gp = gpar(fontface = "bold", fontsize=7),
+                           column_title_gp = gpar(fontsize=7),
                            show_row_names = F,
                            row_names_gp = gpar(fontsize = 5),
                            column_names_gp = gpar(fontsize = 6),
@@ -87,12 +90,12 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
                            # legends
                            show_heatmap_legend = F,
                            heatmap_legend_param = list(color_bar = "continuous",
-                                                       title_gp = gpar(fontsize = 8),
+                                                       title_gp = gpar(fontsize = 6),
                                                        labels_gp = gpar(fontsize = 6),
                                                        grid_width = unit(2,"mm")),
                            # clustering
                            cluster_columns = F,
-                           clustering_distance_rows = "euclidean",
+                           clustering_distance_rows = "pearson",
                            cluster_row_slices = F,
                            show_row_dend = F,
                            #cluster_rows = row.clusters,
@@ -100,8 +103,8 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
                            split = row.clusters,
                            # labels
                            row_title_rot = 0,
-                           row_title_gp = gpar(fontsize=8),
-                           #row_title = NULL,
+                           row_title_gp = gpar(fontsize=7),
+                           row_title = NULL,
                            # size
                            width=ncol(proteins.z.scored)*0.2
   )
@@ -111,19 +114,20 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   
   gene.rowAnnot = rowAnnotation(gene.name = anno_mark(at = label.pos, 
                                                       labels = labels,
-                                                      labels_gp = gpar(fontsize = 6), 
+                                                      labels_gp = gpar(fontsize = 5), 
+                                                      link_gp = gpar(lwd = 0.5),
                                                       link_width = unit(4, "mm"),
                                                       padding = unit(0.5, "mm")))
   
   ht_list = heatmap.proteins + cluster.rowAnnot + gene.rowAnnot
   
-  gb_heatmap = grid.grabExpr(draw(ht_list), height=6, width=4)
+  gb_heatmap = grid.grabExpr(draw(ht_list), height=5, width=2.5)
 }
 
 ################################################################################
 # Profile plots of clusters
 ################################################################################
-plotClusterProfiles <- function(diff.proteins)
+plotClusterProfiles <- function(diff.proteins.averaged.condition.fc.mock)
 {
   num.in.cluster <- (diff.proteins.averaged.condition.fc.mock %>%
                        group_by(cluster) %>% 
@@ -136,7 +140,7 @@ plotClusterProfiles <- function(diff.proteins)
                                 group_by(Condition, cluster) %>% 
                                 summarise_at(c("FC"),  mean))
   
-  p <- (ggplot(diff.proteins, aes(x=Condition, 
+  p <- (ggplot(diff.proteins.averaged.condition.fc.mock, aes(x=Condition, 
                                          y=FC, 
                                          group=interaction(`Gene names`, cluster),
                                          color=as.factor(cluster),
@@ -144,9 +148,9 @@ plotClusterProfiles <- function(diff.proteins)
                                          linetype=as.factor(SARS_CoV_2)))
         
         + geom_line(size=0.5, alpha=0.75)
-        + geom_line(size=0.5, data=representative.profiles, aes(x=Condition, y=FC, group=as.factor(cluster), linetype="solid"), color="black")
+        + geom_line(size=0.5, data=representative.profiles, aes(x=Condition, y=FC, group=as.factor(cluster)), linetype="solid", color=grey)
         
-        + scale_y_continuous(name = "log2(Intensity / 4h Mock)", breaks=seq(-5,5,0.5))
+        + scale_y_continuous(name = "log2(fold-change) over 4h mock", breaks=seq(-5,5,1))
         + scale_x_discrete(name = "Hours post-infection")
         
         + facet_grid(cluster ~ ., scales="free", 
@@ -173,8 +177,8 @@ plotCoVProfiles <- function(proteins)
   
   p <- (ggplot(SARS2.prots, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
         
-        + geom_line(size=0.5, alpha=0.75, color=COV2.color)
-        + geom_point(size=1, color=COV2.color)
+        + geom_line(size=0.5, alpha=0.75, color=medium.grey)
+        + geom_point(size=1, color=medium.grey)
         + geom_text(size=2)
         
         + ggtitle("SARS-CoV-2 Proteins")
@@ -240,6 +244,175 @@ plotVolcano <- function(proteins)
   )
 }
 
+################################################################################
+# Enrichment heatmap
+################################################################################
+plotEnrichment <- function(proteins, diff.proteins, num.clusters)
+{
+  geneIds.universe <- as.character(proteins$First_GeneID[which(!is.na(proteins$First_GeneID))])
+  
+  msig <- msigdbr(species = "Homo sapiens") %>% filter(gs_cat == "H" | (gs_cat == "C2" & gs_subcat == "CP:REACTOME") | (gs_cat == "C5" & gs_subcat %in% c("BP", "CC")))  %>% select(gs_name, entrez_gene)
+  enrichment.results <- tibble()
+  
+  for (cluster.id in 1:num.clusters) {
+    geneIds.cluster <- filter(diff.proteins, cluster == cluster.id)$First_GeneID
+    geneIds.cluster <- geneIds.cluster[which(!is.na(geneIds.cluster))]
+    
+    em <- enricher(gene=geneIds.cluster,
+                   universe=geneIds.universe,
+                   TERM2GENE=msig,
+                   minGSSize = 10,
+                   qvalueCutoff=0.05)
+    
+    if (!is.null(em)) {
+      result <- em@result
+      result$cluster <- cluster.id
+      result <- filter(result, qvalue <= 0.05)
+      if (nrow(result) > 0) {
+        result$genes <- apply(result, 1, function(x) {str_c(sort(getSYMBOL(unlist(str_split(x[["geneID"]],"/")), data='org.Hs.eg')),collapse=",")} )
+        enrichment.results <- rbind(enrichment.results, result)
+      }
+    }
+  }
+  
+  
+  enrichment.results$category <- ""
+  enrichment.results$category[str_detect(enrichment.results$Description, "^HALLMARK")] <- "Hallmark"
+  enrichment.results$category[str_detect(enrichment.results$Description, "^REACTOME")] <- "Reactome"
+  enrichment.results$category[str_detect(enrichment.results$Description, "^GO")] <- "Gene Ontology"
+  
+  num.in.cluster <- (diff.proteins.averaged.condition.fc.mock %>%
+                       group_by(cluster) %>% 
+                       summarise(n=n() / (nlevels(Condition)-1)))
+  
+  enrichment.results$ratio <- enrichment.results$Count / num.in.cluster$n[enrichment.results$cluster]
+  
+  # convert to matrix format
+  enrichment.results_wide = pivot_wider(enrichment.results, id_cols = c(Description, category), names_from = cluster, values_from=c(pvalue, p.adjust, qvalue, Count, GeneRatio, BgRatio, ratio, genes))
+  
+  createDir(here("tables"))
+  write_tsv(filter(enrichment.results_wide, category == "Hallmark"), here("tables/enrichment_hallmark.tsv"), na = "")
+  write_tsv(filter(enrichment.results_wide, category == "Reactome"), here("tables/enrichment_reactome.tsv"), na = "")
+  write_tsv(filter(enrichment.results_wide, category == "Gene Ontology"), here("tables/enrichment_GO.tsv"), na = "")
+  
+  enrichment.results.pruned <- filter(enrichment.results_wide, Description %in% c("REACTOME_CELL_CYCLE_CHECKPOINTS", 
+                                                                                  "REACTOME_SIGNALING_BY_RHO_GTPASES", 
+                                                                                  "REACTOME_DNA_REPAIR", 
+                                                                                  "REACTOME_DNA_REPLICATION", 
+                                                                                  "REACTOME_REGULATION_OF_TP53_ACTIVITY", 
+                                                                                  "REACTOME_SUMOYLATION",
+                                                                                  "REACTOME_NUCLEAR_SIGNALING_BY_ERBB4",
+                                                                                  "REACTOME_DNA_STRAND_ELONGATION",
+                                                                                  
+                                                                                  "GO_INTRINSIC_COMPONENT_OF_PLASMA_MEMBRANE", 
+                                                                                  "GO_SPINDLE", 
+                                                                                  "GO_ANAPHASE_PROMOTING_COMPLEX", 
+                                                                                  "GO_CULLIN_RING_UBIQUITIN_LIGASE_COMPLEX", 
+                                                                                  "GO_UBIQUITIN_LIGASE_COMPLEX", 
+                                                                                  "GO_REPLICATION_FORK", 
+                                                                                  "GO_PHAGOCYTIC_VESICLE_MEMBRANE", 
+                                                                                  "GO_ENDOCYTIC_VESICLE_MEMBRANE", 
+                                                                                  "GO_ORGANELLE_ENVELOPE_LUMEN",
+                                                                                  "GO_MICROTUBULE_CYTOSKELETON_ORGANIZATION",
+                                                                                  "GO_ANTIGEN_PROCESSING_AND_PRESENTATION_OF_ENDOGENOUS_ANTIGEN",
+                                                                                  "GO_INTRINSIC_COMPONENT_OF_ENDOPLASMIC_RETICULUM_MEMBRANE",
+                                                                                  "GO_SEMAPHORIN_PLEXIN_SIGNALING_PATHWAY",
+                                                                                  "GO_REGULATION_OF_B_CELL_PROLIFERATION",
+                                                                                  "GO_RESPONSE_TO_WOUNDING",
+                                                                                  
+                                                                                  "HALLMARK_INTERFERON_ALPHA_RESPONSE", 
+                                                                                  "HALLMARK_INTERFERON_GAMMA_RESPONSE",
+                                                                                  "HALLMARK_KRAS_SIGNALING_DN",
+                                                                                  "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION",
+                                                                                  "HALLMARK_E2F_TARGETS",
+                                                                                  "HALLMARK_G2M_CHECKPOINT"))
+  
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "REACTOME_CELL_CYCLE_CHECKPOINTS")] <- "Cell cycle checkpoints"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "REACTOME_SIGNALING_BY_RHO_GTPASES")] <- "Signaling by Rho GTPases"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "REACTOME_DNA_REPAIR")] <- "DNA repair"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "REACTOME_DNA_REPLICATION")] <- "DNA replication"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "REACTOME_REGULATION_OF_TP53_ACTIVITY")] <- "Regulation of TP53 activity"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "REACTOME_SUMOYLATION")] <- "Sumoylation"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "REACTOME_NUCLEAR_SIGNALING_BY_ERBB4")] <- "Nuclear signaling by ERBB4"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "REACTOME_DNA_STRAND_ELONGATION")] <- "DNA strand elongation"
+  
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_INTRINSIC_COMPONENT_OF_PLASMA_MEMBRANE")] <- "Plasma membrane"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_SPINDLE")] <- "Spindle"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_ANAPHASE_PROMOTING_COMPLEX")] <- "Anaphase promoting complex"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_CULLIN_RING_UBIQUITIN_LIGASE_COMPLEX")] <- "Cullin-RING ubiquitin ligase complex"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_UBIQUITIN_LIGASE_COMPLEX")] <- "Ubiquitin ligase complex"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_REPLICATION_FORK")] <- "Replication Fork"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_PHAGOCYTIC_VESICLE_MEMBRANE")] <- "Phagocytic vesicle membrane"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_ENDOCYTIC_VESICLE_MEMBRANE")] <- "Endocytic vesicle membrane"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_ORGANELLE_ENVELOPE_LUMEN")] <- "Organelle envelope lumen"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_MICROTUBULE_CYTOSKELETON_ORGANIZATION")] <- "Microtubule cytoskeleton organization"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_ANTIGEN_PROCESSING_AND_PRESENTATION_OF_ENDOGENOUS_ANTIGEN")] <- "Antigen processing and presentation"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_INTRINSIC_COMPONENT_OF_ENDOPLASMIC_RETICULUM_MEMBRANE")] <- "Endoplasmic reticulum membrane"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_SEMAPHORIN_PLEXIN_SIGNALING_PATHWAY")] <- "Semaphorin-plexin signaling pathway"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_REGULATION_OF_B_CELL_PROLIFERATION")] <- "Regulation of B-cell proliferation"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_RESPONSE_TO_WOUNDING")] <- "Response to wounding"
+  
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_INTERFERON_ALPHA_RESPONSE")] <- "Interferon alpha response"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_INTERFERON_GAMMA_RESPONSE")] <- "Interferon gamma response"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_KRAS_SIGNALING_DN")] <- "Down-regulated by KRAS signaling"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_EPITHELIAL_MESENCHYMAL_TRANSITION")] <- "Epithelial-mesenchymal transition"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_E2F_TARGETS")] <- "E2F targets"
+  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "HALLMARK_G2M_CHECKPOINT")] <- "G2M checkpoints"
+  
+  enrichment.results.pruned <- arrange(enrichment.results.pruned, category)
+  em.q.values <- select(enrichment.results.pruned, grep("qvalue", colnames(enrichment.results.pruned), value=T))
+  rownames(em.q.values) <- enrichment.results.pruned$Description
+  colnames(em.q.values) <- seq(1:num.clusters)
+  ratio.values <- select(enrichment.results.pruned, grep("ratio", colnames(enrichment.results.pruned), value=T))
+  em.q.values <- -log10(as.matrix(em.q.values))
+  max.q = max(em.q.values, na.rm=T)
+  min.q = min(em.q.values, na.rm=T)
+  col_fun = colorRamp2(c(min.q, max.q-25, max.q), c("#300101", "#e41a1c", "#e41a1c"))
+  
+  col.annot <- HeatmapAnnotation(cluster = anno_simple(colnames(em.q.values),
+                                                       pt_gp = gpar(fontsize = 6),
+                                                       height = unit(2, "mm"),
+                                                       col = structure(brewer.pal(num.clusters, "Set3"), 
+                                                                       names = colnames(em.q.values)),
+                                                       pch=colnames(em.q.values)),
+                                 show_annotation_name = T,
+                                 show_legend = F,
+                                 annotation_name_gp = gpar(fontsize = 6))
+  
+  
+  h <- Heatmap(em.q.values, 
+          # labels
+          column_title = "Enriched gene sets",
+          column_title_gp = gpar(fontsize=7),
+          row_names_gp = gpar(fontsize = 5),
+          column_names_gp = gpar(fontsize = 6),
+          column_names_rot = 0,
+          row_title_gp = gpar(fontsize=7),
+          #name = "-log10(q-value)",
+          # legends
+          bottom_annotation = col.annot,
+          show_heatmap_legend = T,
+          col = col_fun,
+          heatmap_legend_param = list(color_bar = "continuous",
+                                      title_gp = gpar(fontsize = 6),
+                                      labels_gp = gpar(fontsize = 6),
+                                      grid_width = unit(2,"mm")),
+          
+          cluster_rows = F,
+          cluster_columns = F,
+          show_row_names = T,
+          show_column_names = F,
+          #split = enrichment.results.pruned$category,
+          cell_fun = function(j, i, x, y, width, height, fill) {
+            grid.rect(x = x, y = y, width = width, height = height, 
+                      gp = gpar(fill = "white", col = "#EEEEEE"))
+            grid.circle(x = x, y = y, r = sqrt(ratio.values[i, j]) * 0.1,
+                        gp = gpar(fill = col_fun(em.q.values[i, j]), col = NA))
+          }
+  )
+  
+  gb_heatmap = grid.grabExpr(draw(h), height=5, width=2.5)
+}
 
 ################################################################################
 # Read data
@@ -247,6 +420,8 @@ plotVolcano <- function(proteins)
 data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
 SARS.interactors <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
+H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
+uniprot.mapping <- read_tsv(here("annotations/uniprot_mapping.tsv.zip"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
@@ -271,8 +446,9 @@ rep1.valid <- rowSums(select(filtered.data, all_of(counts.rep1)) > 1) > 0 #findi
 rep2.valid <- rowSums(select(filtered.data, all_of(counts.rep2)) > 1) > 0
 rep3.valid <- rowSums(select(filtered.data, all_of(counts.rep3)) > 1) > 0
 
-filtered.data <- select(filtered.data, "Gene names", "Protein IDs", all_of(reporter.intensities))
+filtered.data <- select(filtered.data, "Gene names", "Protein IDs", "Leading razor protein", all_of(reporter.intensities))
 
+#valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) >= 2)
 valid.data <- filter(filtered.data, (rep1.valid + rep2.valid + rep3.valid) >= 2 | str_detect(`Protein IDs`, "SARS_CoV_2"))
 
 #NORMALIZE DATA 
@@ -329,11 +505,19 @@ design <- filter(design, Condition !="Bridge") #have to remove Ref Channel in de
 quant.colnames <- paste(design$Condition, "Rep", design$Replicate)
 colnames(normalized.data) <- quant.colnames
 # add back names
-proteins <- cbind(select(valid.data, "Gene names", "Protein IDs"), normalized.data)
+proteins <- cbind(select(valid.data, "Gene names", "Protein IDs", "Leading razor protein"), normalized.data)
+# remove isoform suffix
+proteins <- separate(proteins, "Leading razor protein", c("Leading canonical"), sep="-", remove=F, extra="drop")
+# fill Entrez GeneID
+proteins <- left_join(proteins, uniprot.mapping, by=c("Leading canonical" = "UniProt"))
 # is it a SARS_CoV_2 protein?
 proteins$"SARS_CoV_2" <- ifelse(str_detect(proteins$`Protein IDs`, "SARS_CoV_2"), T, F)
 # is it an interactor of a SARS_CoV_2 protein?
 proteins <- left_join(proteins, SARS.interactors, by=c("Gene names" = "PreyGeneName"))
+# is it mutated?
+proteins <- left_join(proteins, H522.mutations, by=c("Gene names" = "GeneName"))
+# is it a cell surface or plasma membrane protein?
+proteins <- left_join(proteins, human_surface_and_plasma_membrane_protLevel, by=c("Leading canonical" = "UniProt"))
 
 ################################################################################
 # Stats
@@ -378,21 +562,24 @@ proteins.z.scored <- t(scale(t(as.matrix(select(diff.proteins, all_of(quant.coln
 rownames(proteins.z.scored) <- diff.proteins$`Gene names`
 
 clustering.results = ConsensusClusterPlus(t(proteins.z.scored.avg),
-                                          maxK=15,
+                                          maxK=8,
                                           reps=1000,
                                           pItem=0.8,
                                           pFeature=1,
-                                          clusterAlg="km",
-                                          distance="euclidean",
+                                          #clusterAlg="km",
+                                          #distance="euclidean",
+                                          clusterAlg="hc",
+                                          innerLinkage="complete",
+                                          finalLinkage="ward.D2",
+                                          distance="pearson",
                                           plot="pdf", 
-                                          title="figures/km_1000", 
+                                          title="figures/complete_ward2_pearson_1000", 
                                           seed=1262118388.71279)
 
-num.clusters = 9
+num.clusters = 7
 row.clusters <- clustering.results[[num.clusters]][["consensusClass"]]
 
 # reorder clusters
-# 7->1, 2->2, 3->3, 1->4, 4->5, 9->6, 5->7, 6->8, 8->9
 pos.1 <- which(row.clusters == 1)
 pos.2 <- which(row.clusters == 2)
 pos.3 <- which(row.clusters == 3)
@@ -401,16 +588,14 @@ pos.5 <- which(row.clusters == 5)
 pos.6 <- which(row.clusters == 6)
 pos.7 <- which(row.clusters == 7)
 pos.8 <- which(row.clusters == 8)
-pos.9 <- which(row.clusters == 9)
-row.clusters[pos.7] <- 1
+row.clusters[pos.6] <- 1
 row.clusters[pos.2] <- 2
-row.clusters[pos.3] <- 3
+row.clusters[pos.4] <- 3
 row.clusters[pos.1] <- 4
-row.clusters[pos.4] <- 5
-row.clusters[pos.9] <- 6
+row.clusters[pos.7] <- 5
+row.clusters[pos.3] <- 6
 row.clusters[pos.5] <- 7
-row.clusters[pos.6] <- 8
-row.clusters[pos.8] <- 9
+#row.clusters[pos.7] <- 8
 
 diff.proteins$cluster <- row.clusters
 proteins <- left_join(proteins, select(diff.proteins, "Protein IDs", "cluster"), by="Protein IDs")
@@ -456,41 +641,39 @@ figHeatmap <- plotHeatmap(proteins.z.scored, diff.proteins, design)
 figClusterProfiles <- plotClusterProfiles(diff.proteins.averaged.condition.fc.mock)
 figCOVProfiles <- plotCoVProfiles(proteins.averaged.condition.fc.mock)
 figVolcano <- plotVolcano(proteins)
+figEnrichment <- plotEnrichment(proteins, diff.proteins, num.clusters)
 
 
 F5.top <- arrangeGrob(figPCA, figCOVProfiles, figVolcano,
                   nrow = 1,
                   ncol = 3)
-F5.bottom <- arrangeGrob(figHeatmap, figClusterProfiles,
-                         widths = unit(c(4, 1.5, 2), "in"),
+F5.bottom.left <- arrangeGrob(figHeatmap, figClusterProfiles,
+                         widths = unit(c(2.2, 1.2, 2, 1.45), "in"),
                          nrow = 1,
-                         ncol = 3)
+                         ncol = 4)
+
 
 #grid.draw(F5.top)  # to view the plot
-saveFig(F5.top, "Figure5_top", 9, 7.5)
-saveFig(F5.bottom, "Figure5_bottom", 6, 7.5)
+saveFig(F5.top, "Figure5_top", 9, 6.85)
+saveFig(F5.bottom.left, "Figure5_bottom_left", 5, 6.85)
+saveFig(figEnrichment, "Figure5_bottom_right", 2.75, 2.5)
 
 ################################################################################
 # Work in progress
 ################################################################################
 
+
+
+
+
+
+
 #colnames(proteins.annot)[8:31] <- paste(design$Condition, "Rep", design$Replicate)
 #write_tsv(proteins.annot, "~/Box/H522-paperoutline/Figures/Figure5/proteinGroups_log2_relative_to_bridge.tsv")
-
-
-#sampleGOdata.1 <- new("topGOdata",
-#                    description = "Simple session", ontology = "BP",
-#                    allGenes = proteins.annot$Gene.names, geneSel = diff.proteins$Gene.names,
-#                    nodeSize = 10,
-#                    annot = annFUN.org)
-
 #write_tsv(diff.proteins.melted, "~/Downloads/clusters.tsv")
 
 ################################################################################
 # Write processed data
 ################################################################################
 write_tsv(proteins, here("data_processed/proteinsNormedToBridge.txt"))
-
-
-
 

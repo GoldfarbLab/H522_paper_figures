@@ -5,6 +5,7 @@ library(egg)
 
 golden.ratio <- 1/1.618
 grey <- "#333333"
+medium.grey <- "#666666"
 light.grey <- "#AAAAAA"
 COV2.color <- "#fb8072"
 
@@ -23,14 +24,14 @@ colors.Cell.line <- c("H522" = "#ff7f00",
                       "A427" = light.grey)
 
 theme.basic <- (theme_minimal() 
-                + theme(axis.line = element_line(colour = grey, size = 0.5, linetype = "solid"), 
+                + theme(axis.line = element_line(colour = grey, size = 0.35, linetype = "solid"), 
                         panel.grid = element_blank(),
-                        axis.ticks = element_line(size = 0.5, colour = grey),
+                        axis.ticks = element_line(size = 0.35, colour = grey),
                         axis.ticks.length = unit(.1, "cm"),
                         aspect.ratio = golden.ratio,
-                        plot.title = element_text(size=8, hjust=0.5),
-                        text = element_text(size=7),
-                        axis.title = element_text(size=7)
+                        plot.title = element_text(size=7, hjust=0.5),
+                        text = element_text(size=6),
+                        axis.title = element_text(size=6)
                         )
 )
 
