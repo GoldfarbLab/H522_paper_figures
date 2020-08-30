@@ -431,7 +431,9 @@ plotEnrichment <- function(proteins, diff.proteins, num.clusters)
 ################################################################################
 data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
-SARS.interactors <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait", "PreyGeneName"))
+SARS.interactors.krogan <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait.Krogan", "PreyGeneName"))
+SARS.interactors.mann <- select(read_csv("annotations/Mann_Interactors_Caco2.csv"), c("Bait.Mann", "gene_name"))
+SARS.interactors.mann <- SARS.interactors.mann %>% group_by(gene_name) %>% summarise(Bait.Mann2 = str_c(base::unique(Bait.Mann), collapse = ";"))
 H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
 uniprot.mapping <- read_tsv(here("annotations/uniprot_mapping.tsv.zip"))
 #TMT9: Reference Channel 
@@ -525,12 +527,37 @@ proteins <- left_join(proteins, uniprot.mapping, by=c("Leading canonical" = "Uni
 # is it a SARS_CoV_2 protein?
 proteins$"SARS_CoV_2" <- ifelse(str_detect(proteins$`Protein IDs`, "SARS_CoV_2"), T, F)
 # is it an interactor of a SARS_CoV_2 protein?
-proteins <- left_join(proteins, SARS.interactors, by=c("Gene names" = "PreyGeneName"))
+
+proteins <- left_join(proteins, SARS.interactors.krogan, by=c("Gene names" = "PreyGeneName"))
+proteins <- left_join(proteins, SARS.interactors.mann, by=c("Gene names" = "gene_name"))
+proteins$Bait <- str_c(str_replace_na(proteins$Bait.Krogan, replacement = ""), 
+                       str_replace_na(proteins$Bait.Mann, replacement = ""), sep = ";")
+proteins$Bait <- apply(proteins, 1, function(x) {
+  y <- c(x["Bait.Krogan"], x["Bait.Mann"])
+  str_c(base::unique(y[!is.na(y)]), collapse = ";")})
+proteins <- proteins %>% mutate_all(na_if,"") #replace "" with NAs in Bait Column 
+
+# interferon response 
+interferon.response.alpha <- read_csv(here("annotations/interferon_response_alpha.txt")) %>% mutate(Interferon.Alpha = TRUE)
+interferon.response.beta <- read_csv(here("annotations/interferon_response_beta.txt"))  %>% mutate(Interferon.Beta = TRUE)
+interferon.response.gamma <-  read_csv(here("annotations/interferon_response_gamma.txt"))  %>% mutate(Interferon.Gamma = TRUE)
+interferon.regulation.type1 <-  read_csv(here("annotations/regulation_of_type_I_interferon_mediated_signaling_pathway.txt"))  %>% mutate(Interferon.TypeI = TRUE)
+interferon.regulation.type2.immune.response <-  read_csv(here("annotations/regulation_type_2_immune_response.txt"))  %>% mutate(Interferon.TypeII = TRUE)
+antigen.processing.presentation <- read_csv(here("annotations/antigen_processing_and_presentation.txt"))  %>% mutate(Interferon.Antigen.Processing = TRUE)
+
+proteins <- left_join(proteins, interferon.response.alpha, by=c("Gene names" = "GO_CELLULAR_RESPONSE_TO_INTERFERON_ALPHA"))
+proteins <- left_join(proteins, interferon.response.beta, by=c("Gene names" = "GO_CELLULAR_RESPONSE_TO_INTERFERON_BETA"))
+proteins <- left_join(proteins, interferon.response.gamma, by=c("Gene names" = "GO_RESPONSE_TO_INTERFERON_GAMMA"))
+proteins <- left_join(proteins, interferon.regulation.type1, by=c("Gene names" = "GO_REGULATION_OF_TYPE_I_INTERFERON_MEDIATED_SIGNALING_PATHWAY"))
+proteins <- left_join(proteins, interferon.regulation.type2.immune.response, by=c("Gene names" = "GO_REGULATION_OF_TYPE_2_IMMUNE_RESPONSE"))
+proteins <- left_join(proteins, antigen.processing.presentation, by=c("Gene names" = "GO_ANTIGEN_PROCESSING_AND_PRESENTATION"))
+
+proteins$Inteferon_Response <- proteins$Interferon.Alpha == TRUE | proteins$Interferon.Beta == TRUE | proteins$Interferon.Gamma == TRUE | proteins$Interferon.TypeI == TRUE | proteins$Interferon.TypeII == TRUE | proteins$Interferon.Antigen.Processing == TRUE
+
 # is it mutated?
 proteins <- left_join(proteins, H522.mutations, by=c("Gene names" = "GeneName"))
 # is it a cell surface or plasma membrane protein?
 proteins <- left_join(proteins, human_surface_and_plasma_membrane_protLevel, by=c("Leading canonical" = "UniProt"))
-
 ################################################################################
 # Stats
 ################################################################################
