@@ -1,8 +1,5 @@
 library(tidyverse)
 
-data.path <- "~/Box/CellBio-GoldfarbLab/Data/Mass Spec/Analysis/H522 SARS-CoV-2/txt/"
-
-
 ################################################################################
 # Process evidence
 ################################################################################
