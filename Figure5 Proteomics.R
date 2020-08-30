@@ -12,7 +12,7 @@ library(CellSurfaceTools) # install.packages('devtools') # devtools::install_git
 source(here("common.R"))
 select <- get(x = "select", pos = "package:dplyr") # deal with function masking
 
-#source(here("RequantifyProteomics.R")) # only necessary to run once
+source(here("RequantifyProteomics.R")) # only necessary to run once
 
 log.stats.threshold = -log10(0.05)
 log.fc.threshold = log2(1.3)
@@ -110,7 +110,7 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   )
   
   cluster.rowAnnot <- rowAnnotation(block = anno_block(gp = gpar(fill = brewer.pal(num.clusters, "Set3"), col = NA)),
-                                    width = unit(2, "mm"))
+                                    width = unit(1, "mm"))
   
   gene.rowAnnot = rowAnnotation(gene.name = anno_mark(at = label.pos, 
                                                       labels = labels,
@@ -131,27 +131,40 @@ plotClusterProfiles <- function(diff.proteins.averaged.condition.fc.mock)
 {
   num.in.cluster <- (diff.proteins.averaged.condition.fc.mock %>%
                        group_by(cluster) %>% 
-                       summarise(n=n() / (nlevels(Condition)-1)))
+                       summarise(n=n() / (nlevels(Condition))))
   
   cluster.labels <- paste("Cluster ", num.in.cluster$cluster, " (n=", num.in.cluster$n, ")", sep="")
   names(cluster.labels) <- seq(1:num.clusters)
   
   representative.profiles <- (diff.proteins.averaged.condition.fc.mock %>% 
-                                group_by(Condition, cluster) %>% 
+                                group_by(Time, cluster, Mock) %>% 
                                 summarise_at(c("FC"),  mean))
   
-  p <- (ggplot(diff.proteins.averaged.condition.fc.mock, aes(x=Condition, 
+  diff.proteins.averaged.condition.fc.noMock <- filter(diff.proteins.averaged.condition.fc.mock, Mock==F)
+  diff.proteins.averaged.condition.fc.MockOnly <- filter(diff.proteins.averaged.condition.fc.mock, Mock==T)
+  
+  
+  p <- (ggplot(diff.proteins.averaged.condition.fc.noMock, aes(x=as.numeric(Time), 
                                          y=FC, 
-                                         group=interaction(`Gene names`, cluster),
+                                         group=interaction(`Gene names`, cluster, Mock),
                                          color=as.factor(cluster),
-                                         facet=cluster,
-                                         linetype=as.factor(SARS_CoV_2)))
+                                         linetype=as.factor(Mock),
+                                         facet=cluster))
         
-        + geom_line(size=0.5, alpha=0.75)
-        + geom_line(size=0.5, data=representative.profiles, aes(x=Condition, y=FC, group=as.factor(cluster)), linetype="solid", color=grey)
+        + geom_line(size=0.25, data = diff.proteins.averaged.condition.fc.MockOnly, color="#CCCCCC")
+        + geom_line(size=0.25, alpha=0.5)
+        + geom_line(size=0.4, data=representative.profiles, 
+                    aes(x=as.numeric(Time), y=FC, group=interaction(as.factor(cluster), Mock)),
+                    color=grey)
+        + geom_point(size=0.4, data=representative.profiles, 
+                     aes(x=as.numeric(Time), y=FC, group=NULL), 
+                     color=grey)
         
-        + scale_y_continuous(name = "log2(fold-change) over 4h mock", breaks=seq(-5,5,1))
-        + scale_x_discrete(name = "Hours post-infection")
+        
+        + scale_y_continuous(name = "log2(fold-change over 4h mock)", breaks=seq(-5,5,1))
+        + scale_x_continuous(name = "Hours post-infection", 
+                             breaks = c(4, 12, 24, 48, 72, 96),
+                             expand = c(0.05, 0))
         
         + facet_grid(cluster ~ ., scales="free", 
                      labeller = labeller(cluster = cluster.labels))
@@ -371,11 +384,10 @@ plotEnrichment <- function(proteins, diff.proteins, num.clusters)
   
   col.annot <- HeatmapAnnotation(cluster = anno_simple(colnames(em.q.values),
                                                        pt_gp = gpar(fontsize = 6),
-                                                       height = unit(2, "mm"),
+                                                       height = unit(1, "mm"),
                                                        col = structure(brewer.pal(num.clusters, "Set3"), 
-                                                                       names = colnames(em.q.values)),
-                                                       pch=colnames(em.q.values)),
-                                 show_annotation_name = T,
+                                                                       names = colnames(em.q.values))),
+                                 show_annotation_name = F,
                                  show_legend = F,
                                  annotation_name_gp = gpar(fontsize = 6))
   
@@ -401,7 +413,7 @@ plotEnrichment <- function(proteins, diff.proteins, num.clusters)
           cluster_rows = F,
           cluster_columns = F,
           show_row_names = T,
-          show_column_names = F,
+          show_column_names = T,
           #split = enrichment.results.pruned$category,
           cell_fun = function(j, i, x, y, width, height, fill) {
             grid.rect(x = x, y = y, width = width, height = height, 
@@ -616,7 +628,8 @@ proteins.averaged.condition.fc.mock <- (proteins.averaged.condition %>%
                                           left_join(filter(., Condition == "Mock - 4 hr"), by="Gene names", suffix=c("",".mock")) %>%
                                           mutate(FC = FC - FC.mock) %>%
                                           mutate(Condition = factor(Condition, levels=c("Mock - 4 hr", "4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "Mock - 96 hr"))) %>%
-                                          filter(Condition != "Mock - 4 hr"))
+                                          mutate(Mock = str_detect(Condition, "Mock")) %>%
+                                          mutate(Time = str_extract(Condition, "\\d+")))
 
 diff.proteins.averaged.condition <- (diff.proteins %>%
                                        pivot_longer(all_of(quant.colnames), names_to="Condition", values_to="FC") %>%
@@ -628,7 +641,8 @@ diff.proteins.averaged.condition.fc.mock <- (diff.proteins.averaged.condition %>
                                                left_join(filter(., Condition == "Mock - 4 hr"), by="Gene names", suffix=c("",".mock")) %>%
                                                mutate(FC = FC - FC.mock) %>%
                                                mutate(Condition = factor(Condition, levels=c("Mock - 4 hr", "4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "Mock - 96 hr"))) %>%
-                                               filter(Condition != "Mock - 4 hr"))
+                                               mutate(Mock = str_detect(Condition, "Mock")) %>%
+                                               mutate(Time = str_extract(Condition, "\\d+")))
 
 
 
@@ -648,7 +662,7 @@ F5.top <- arrangeGrob(figPCA, figCOVProfiles, figVolcano,
                   nrow = 1,
                   ncol = 3)
 F5.bottom.left <- arrangeGrob(figHeatmap, figClusterProfiles,
-                         widths = unit(c(2.2, 1.2, 2, 1.45), "in"),
+                         widths = unit(c(2.3, 1.3, 2, 1.25), "in"),
                          nrow = 1,
                          ncol = 4)
 
