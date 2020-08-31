@@ -7,6 +7,7 @@ library(ComplexHeatmap)
 library(ConsensusClusterPlus)
 library(org.Hs.eg.db)
 library(annotate)
+library(biogridr) # devtools::install_github("npjc/biogridr")
 library(CellSurfaceTools) # install.packages('devtools') # devtools::install_github("GoldfarbLab/CellSurfaceTools")
 
 source(here("common.R"))
@@ -69,13 +70,15 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   # reorder columns
   proteins.z.scored <- proteins.z.scored[, c(1,9,17, 2,10,18, 3,11,19, 4,12,20, 5,13,21, 6,14,22, 7,15,23, 8,16,24)]
   
-  label.sars2.pos <-  which(diff.proteins$SARS_CoV_2 == T)
-  label.int.pos <-  which(!is.na(diff.proteins$Bait))
-  label.pos <- c(label.sars2.pos, label.int.pos)
+  #label.sars2.pos <-  which(diff.proteins$SARS_CoV_2 == T)
+  #label.int.pos <-  which(!is.na(diff.proteins$Bait))
+  #label.pos <- c(label.sars2.pos, label.int.pos)
+  label.pos <- which(diff.proteins$SARS_CoV_2 == T)
   
-  labels.sars2 <- diff.proteins$`Gene names`[label.sars2.pos]
-  labels.int <- paste(diff.proteins$`Gene names`[label.int.pos], " (", diff.proteins$Bait[label.int.pos], ")", sep="")
-  labels <- c(labels.sars2, labels.int)
+  #labels.sars2 <- diff.proteins$`Gene names`[label.sars2.pos]
+  #labels.int <- paste(diff.proteins$`Gene names`[label.int.pos], " (", diff.proteins$Bait[label.int.pos], ")", sep="")
+  #labels <- c(labels.sars2, labels.int)
+  labels <- diff.proteins$`Gene names`[label.pos]
   
   heatmap.proteins <- Heatmap(proteins.z.scored,
                            # labels
@@ -190,7 +193,7 @@ plotCoVProfiles <- function(proteins)
   
   p <- (ggplot(SARS2.prots, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
         
-        + geom_line(size=0.5, alpha=0.75, color=medium.grey)
+        + geom_line(size=0.5, alpha=1, color=medium.grey)
         + geom_point(size=1, color=medium.grey)
         + geom_text(size=2)
         
@@ -431,9 +434,20 @@ plotEnrichment <- function(proteins, diff.proteins, num.clusters)
 ################################################################################
 data <- read_tsv(here("data_processed/requantifiedProteins.txt"), guess_max=10000)
 design <- read_csv(here("data/MS/Experimental Design H522 Paper.csv"))
+
 SARS.interactors.krogan <- select(read_csv(here("annotations/SARS2_interactome.csv")), c("Bait.Krogan", "PreyGeneName"))
-SARS.interactors.mann <- select(read_csv("annotations/Mann_Interactors_Caco2.csv"), c("Bait.Mann", "gene_name"))
-SARS.interactors.mann <- SARS.interactors.mann %>% group_by(gene_name) %>% summarise(Bait.Mann2 = str_c(base::unique(Bait.Mann), collapse = ";"))
+
+SARS.interactors.mann <- read_csv("annotations/Mann_Interactors_Caco2.csv") %>% 
+  filter(str_detect(bait_full_name, "SARS_CoV2")) %>% 
+  select(c("Bait.Mann", "gene_name")) %>% 
+  group_by(gene_name) %>% 
+  summarise(Bait.Mann = str_c(base::unique(Bait.Mann), collapse = ";"))
+
+SARS.interactors.liang <- read_tsv(here("annotations/Liang_interactors.txt")) %>% 
+  mutate(Bait.Liang = Bait) %>% 
+  select("Bait.Liang", "Gene name")
+  
+
 H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
 uniprot.mapping <- read_tsv(here("annotations/uniprot_mapping.tsv.zip"))
 #TMT9: Reference Channel 
@@ -530,11 +544,15 @@ proteins$"SARS_CoV_2" <- ifelse(str_detect(proteins$`Protein IDs`, "SARS_CoV_2")
 
 proteins <- left_join(proteins, SARS.interactors.krogan, by=c("Gene names" = "PreyGeneName"))
 proteins <- left_join(proteins, SARS.interactors.mann, by=c("Gene names" = "gene_name"))
+proteins <- left_join(proteins, SARS.interactors.liang, by=c("Gene names" = "Gene name"))
 proteins$Bait <- str_c(str_replace_na(proteins$Bait.Krogan, replacement = ""), 
-                       str_replace_na(proteins$Bait.Mann, replacement = ""), sep = ";")
+                       str_replace_na(proteins$Bait.Mann, replacement = ""),
+                       str_replace_na(proteins$Bait.Liang, replacement = ""),
+                       sep = ";")
 proteins$Bait <- apply(proteins, 1, function(x) {
-  y <- c(x["Bait.Krogan"], x["Bait.Mann"])
-  str_c(base::unique(y[!is.na(y)]), collapse = ";")})
+  baits <- unlist(str_split(x["Bait"], ";"))
+  baits <- baits[baits != ""]
+  str_c(base::unique(baits), collapse = ";")})
 proteins <- proteins %>% mutate_all(na_if,"") #replace "" with NAs in Bait Column 
 
 # interferon response 
@@ -700,18 +718,30 @@ saveFig(F5.bottom.left, "Figure5_bottom_left", 5, 6.85)
 saveFig(figEnrichment, "Figure5_bottom_right", 2.75, 2.5)
 
 ################################################################################
-# Work in progress
+# Cytoscape output
 ################################################################################
 
+#bg_get_key("Dennis","Goldfarb","d.goldfarb@wustl.edu","interactome")
+
+#interactions <- bg("interactions") %>%
+#  bg_constrain(taxId = 9606, 
+#               geneList = str_c(as.vector(diff.proteins$`First_GeneID`[!is.na(diff.proteins$`First_GeneID`)]), collapse="|"),
+#               searchIds = T,
+#               includeInteractors = F) %>%
+#  bg_get_results()
+
+#interactions <- interactions %>% filter(experimental_system_name != "Two-hybrid" & experimental_system_type == "physical") %>%
+#  filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
+#  group_by(entrez_gene_id_for_interactor_a, entrez_gene_id_for_interactor_b) %>%
+#  summarise(n = n())
 
 
+# Node file
+#write_tsv(diff.proteins, here("tables/diff_proteins.tsv"), na="")
+# Edge file BioGRID
+#write_tsv(interactions, here("tables/biogrid_int.tsv"), na="")
+# Edge file SARS-CoV-2
 
-
-
-
-#colnames(proteins.annot)[8:31] <- paste(design$Condition, "Rep", design$Replicate)
-#write_tsv(proteins.annot, "~/Box/H522-paperoutline/Figures/Figure5/proteinGroups_log2_relative_to_bridge.tsv")
-#write_tsv(diff.proteins.melted, "~/Downloads/clusters.tsv")
 
 ################################################################################
 # Write processed data
