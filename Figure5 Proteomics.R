@@ -445,7 +445,9 @@ SARS.interactors.mann <- read_csv("annotations/Mann_Interactors_Caco2.csv") %>%
 
 SARS.interactors.liang <- read_tsv(here("annotations/Liang_interactors.txt")) %>% 
   mutate(Bait.Liang = Bait) %>% 
-  select("Bait.Liang", "Gene name")
+  select("Bait.Liang", "Gene name") %>%
+  group_by(`Gene name`) %>% 
+  summarise(Bait.Liang = str_c(base::unique(Bait.Liang), collapse = ";"))
   
 
 H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
@@ -721,26 +723,52 @@ saveFig(figEnrichment, "Figure5_bottom_right", 2.75, 2.5)
 # Cytoscape output
 ################################################################################
 
-#bg_get_key("Dennis","Goldfarb","d.goldfarb@wustl.edu","interactome")
+bg_get_key("Dennis","Goldfarb","d.goldfarb@wustl.edu","interactome")
 
-#interactions <- bg("interactions") %>%
-#  bg_constrain(taxId = 9606, 
-#               geneList = str_c(as.vector(diff.proteins$`First_GeneID`[!is.na(diff.proteins$`First_GeneID`)]), collapse="|"),
-#               searchIds = T,
-#               includeInteractors = F) %>%
-#  bg_get_results()
+interactions <- bg("interactions") %>%
+  bg_constrain(taxId = 9606, 
+               geneList = str_c(as.vector(diff.proteins$`First_GeneID`[!is.na(diff.proteins$`First_GeneID`)]), collapse="|"),
+               searchIds = T,
+               includeInteractors = F) %>%
+  bg_get_results()
 
-#interactions <- interactions %>% filter(experimental_system_name != "Two-hybrid" & experimental_system_type == "physical") %>%
-#  filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
-#  group_by(entrez_gene_id_for_interactor_a, entrez_gene_id_for_interactor_b) %>%
-#  summarise(n = n())
-
+interactions <- interactions %>% filter(experimental_system_name != "Two-hybrid" & experimental_system_type == "physical") %>%
+  filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
+  filter(entrez_gene_id_for_interactor_a != entrez_gene_id_for_interactor_b) %>%
+  mutate(official_symbol_for_interactor_a = getSYMBOL(as.character(entrez_gene_id_for_interactor_a), data='org.Hs.eg'),
+         official_symbol_for_interactor_b = getSYMBOL(as.character(entrez_gene_id_for_interactor_b), data='org.Hs.eg')) %>%
+  group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
+  summarise(n = n()) %>% filter(n > 1)
 
 # Node file
-#write_tsv(diff.proteins, here("tables/diff_proteins.tsv"), na="")
-# Edge file BioGRID
-#write_tsv(interactions, here("tables/biogrid_int.tsv"), na="")
-# Edge file SARS-CoV-2
+CoV2.proteins <- c("E","M","N","S",
+                   str_c("Nsp", 1:16),
+                   str_c("Orf", c("3a", "3b", "6", "7a", "7b", "8", "9b", "10")))
+CoV2.proteins.not.diff <- CoV2.proteins[!CoV2.proteins %in% diff.proteins$`Gene names`]
+
+nodes <- select(diff.proteins, "Gene names", "First_GeneID", "SARS_CoV_2", "cluster", "is_unique_mutation", "Num cell surface evidence")
+nodes <- rbind(nodes, tibble("Gene names" = CoV2.proteins.not.diff, "First_GeneID" = NA, "SARS_CoV_2" = T, "cluster" = NA, "is_unique_mutation" = NA, "Num cell surface evidence" = NA))
+write_tsv(nodes, here("tables/nodes.tsv"), na="")
+
+
+
+
+# Edges SARS-CoV-2
+CoV2.interactions <- tibble()
+for (bait in CoV2.proteins) {
+  num_evidence <- rowSums(tibble(K=str_detect(diff.proteins$Bait.Krogan, bait),
+                                 M=str_detect(diff.proteins$Bait.Mann, bait),
+                                 L=str_detect(diff.proteins$Bait.Liang, bait)), 
+                          na.rm=T)
+  int.pos <- which(num_evidence > 0)
+  
+  CoV2.interactions <- rbind(CoV2.interactions, tibble(official_symbol_for_interactor_a=bait, 
+                                                       official_symbol_for_interactor_b=diff.proteins$`Gene names`[int.pos], 
+                                                       n=num_evidence[int.pos]))
+}
+# Edge file
+edges <- rbind(interactions, CoV2.interactions)
+write_tsv(edges, here("tables/edges.tsv"), na="")
 
 
 ################################################################################
