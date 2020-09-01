@@ -452,6 +452,7 @@ SARS.interactors.liang <- read_tsv(here("annotations/Liang_interactors.txt")) %>
 
 H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
 uniprot.mapping <- read_tsv(here("annotations/uniprot_mapping.tsv.zip"))
+corum <- read_tsv(here("annotations/allComplexes.txt"))
 #TMT9: Reference Channel 
 #TMT10: remove
 
@@ -723,14 +724,180 @@ saveFig(figEnrichment, "Figure5_bottom_right", 2.75, 2.5)
 # Cytoscape output
 ################################################################################
 
+createDir(here("tables/networks"))
+
+# integrate CORUM
+corum.matches <- corum %>% 
+  select("ComplexName", "subunits(Entrez IDs)") %>%
+  separate_rows("subunits(Entrez IDs)", sep=";") %>%
+  filter(`subunits(Entrez IDs)` != "None") %>%
+  mutate("subunits(Entrez IDs)" = as.numeric(`subunits(Entrez IDs)`)) %>%
+  distinct() %>%
+  group_by(ComplexName) %>%  mutate(num_subunits=n()) %>% 
+  left_join(diff.proteins, by = c("subunits(Entrez IDs)" = "First_GeneID")) %>%
+  group_by(ComplexName) %>%
+  mutate(n=sum(!is.na(logFC))) %>% mutate(ratio = n/num_subunits) %>%
+  filter((n > 1 & ratio >= 0.51 & num_subunits > 2)) %>%
+  select("ComplexName", "n", "num_subunits", "ratio", "cluster", 
+         "subunits(Entrez IDs)", "Gene names", "Bait.Krogan", "Bait.Mann", 
+         "Bait.Liang", "is_unique_mutation", "Num cell surface evidence") %>%
+  mutate("Gene names" = getSYMBOL(as.character(`subunits(Entrez IDs)`), data='org.Hs.eg'))
+
+corum.not.matched <- corum.matches %>% filter(is.na(cluster)) %>%
+  left_join(select(proteins, "First_GeneID", "is_unique_mutation"), by = c("subunits(Entrez IDs)" = "First_GeneID")) %>%
+  mutate(is_unique_mutation = is_unique_mutation.y) %>% select(-c(is_unique_mutation.x,is_unique_mutation.y)) %>%
+  distinct()
+
+# Global node file
+CoV2.proteins <- c("E","M","N","S",
+                   str_c("Nsp", 1:16),
+                   str_c("Orf", c("3a", "3b", "6", "7a", "7b", "8", "9b", "10")))
+CoV2.proteins.not.diff <- CoV2.proteins[!CoV2.proteins %in% diff.proteins$`Gene names`]
+
+nodes <- select(diff.proteins, "Gene names", "First_GeneID", "SARS_CoV_2", "cluster", "is_unique_mutation", "Num cell surface evidence") %>% 
+  mutate(quantified=T)
+nodes <- rbind(nodes, tibble("Gene names" = CoV2.proteins.not.diff, "First_GeneID"=NA, "SARS_CoV_2"=T, 
+                             "cluster"=NA, "is_unique_mutation"=NA, "Num cell surface evidence"=NA, "quantified"=CoV2.proteins.not.diff %in% proteins$`Gene names`))
+nodes <- rbind(nodes, tibble("Gene names" = corum.not.matched$"Gene names", "First_GeneID"=corum.not.matched$"subunits(Entrez IDs)", 
+                             "SARS_CoV_2"=F, "cluster"=NA, "is_unique_mutation"=corum.not.matched$"is_unique_mutation",
+                             "Num cell surface evidence"=NA, "quantified" = corum.not.matched$"subunits(Entrez IDs)" %in% proteins$First_GeneID) %>% distinct())
+write_tsv(nodes, here("tables/networks/nodes.tsv"), na="")
+
 bg_get_key("Dennis","Goldfarb","d.goldfarb@wustl.edu","interactome")
+
+
+
+# edge file for each CORUM complex
+for (complex in unique(corum.matches$ComplexName)) {
+  complex.matches <- filter(corum.matches, ComplexName == complex)
+  
+  # make a clique for the CORUM complex
+  complex.interactions <- tibble()
+  for (interactor_a in unique(complex.matches$`Gene names`)) {
+    for (interactor_b in unique(complex.matches$`Gene names`)) {
+      if (interactor_a < interactor_b) {
+        complex.interactions <- rbind(complex.interactions, 
+                                      tibble(official_symbol_for_interactor_a=interactor_a,
+                                             official_symbol_for_interactor_b=interactor_b,
+                                             n=1))
+      }
+    }
+  }
+  
+  # get BioGRID interactions with the complex members
+  # geneList = c(as.vector(diff.proteins$`First_GeneID`[!is.na(diff.proteins$`First_GeneID`)]),
+  #              complex.matches$`subunits(Entrez IDs)`)
+  # interactions <- bg("interactions") %>%
+  #   bg_constrain(taxId = 9606, 
+  #                geneList = str_c(geneList, collapse="|"),
+  #                searchIds = T,
+  #                includeInteractors = F) %>%
+  #   bg_get_results()
+  # 
+  # # Check if any diff proteins interact with >50% of the complex
+  # interactions <- interactions %>%
+  #   filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
+  #   filter(entrez_gene_id_for_interactor_a != entrez_gene_id_for_interactor_b) %>%
+  #   filter(entrez_gene_id_for_interactor_a %in% complex.matches$`subunits(Entrez IDs)` | entrez_gene_id_for_interactor_b %in% complex.matches$`subunits(Entrez IDs)`) %>%
+  #   mutate(official_symbol_for_interactor_a = getSYMBOL(as.character(entrez_gene_id_for_interactor_a), data='org.Hs.eg'),
+  #          official_symbol_for_interactor_b = getSYMBOL(as.character(entrez_gene_id_for_interactor_b), data='org.Hs.eg')) %>%
+  #   mutate(interactor_min = pmin(official_symbol_for_interactor_a, official_symbol_for_interactor_b),
+  #          interactor_max = pmax(official_symbol_for_interactor_a, official_symbol_for_interactor_b)) %>%
+  #   mutate(official_symbol_for_interactor_a = interactor_min, 
+  #          official_symbol_for_interactor_b = interactor_max) %>%
+  #   group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
+  #   summarise(n = n()) %>% filter(n > 1)
+  # 
+  # interactions.A <- interactions %>% 
+  #   group_by(official_symbol_for_interactor_a) %>% 
+  #   filter(!(official_symbol_for_interactor_a %in% complex.matches$`Gene names`)) %>%
+  #   summarise(c.n = n())
+  # interactions.B <- interactions %>% 
+  #   group_by(official_symbol_for_interactor_b) %>% 
+  #   filter(!(official_symbol_for_interactor_b %in% complex.matches$`Gene names`)) %>%
+  #   summarise(c.n = n())
+  # interactions.tot <- full_join(interactions.A, interactions.B, by=c("official_symbol_for_interactor_a" = "official_symbol_for_interactor_b")) %>%
+  #   mutate(c.n = rowSums(select(., c.n.x, c.n.y), na.rm=T)) %>%
+  #   filter(c.n > 0.67*complex.matches$num_subunits[1])
+  # 
+  # if (nrow(interactions.tot) > 0) {
+  #   interactions.with.complex <- interactions %>%
+  #     filter(official_symbol_for_interactor_a %in% interactions.tot$official_symbol_for_interactor_a | official_symbol_for_interactor_b %in% interactions.tot$official_symbol_for_interactor_a)
+  # 
+  #   interactions <- rbind(complex.interactions, interactions.with.complex)
+  #   
+  #   if (nrow(interactions.tot) > 1) {
+  #     interactions.between <- bg("interactions") %>%
+  #       bg_constrain(taxId = 9606, 
+  #                    geneList = str_c(interactions.tot$official_symbol_for_interactor_a, collapse="|"),
+  #                    searchIds = F,
+  #                    includeInteractors = F) %>%
+  #       bg_get_results() 
+  #     
+  #     if (nrow(interactions.between) > 0) {
+  #       interactions.between <- interactions.between %>% 
+  #         filter(entrez_gene_id_for_interactor_a != entrez_gene_id_for_interactor_b) %>%
+  #         mutate(interactor_min = pmin(official_symbol_for_interactor_a, official_symbol_for_interactor_b),
+  #                interactor_max = pmax(official_symbol_for_interactor_a, official_symbol_for_interactor_b)) %>%
+  #         mutate(official_symbol_for_interactor_a = interactor_min, 
+  #                official_symbol_for_interactor_b = interactor_max) %>%
+  #         group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
+  #         summarise(n = n()) %>% filter(n > 1)
+  #       
+  #       interactions <- rbind(interactions, interactions.between)
+  #     }
+  #   }
+  # } else {
+  #   interactions <- complex.interactions
+  # }
+  
+  interactions <- complex.interactions
+  interactions <- interactions %>% mutate(source = official_symbol_for_interactor_a,
+                                          target = official_symbol_for_interactor_b) %>%
+    select(-official_symbol_for_interactor_a, -official_symbol_for_interactor_b)
+  
+  # Add SARS-CoV-2 interactions
+  for (bait in CoV2.proteins) {
+    num_evidence <- rowSums(tibble(K=str_detect(complex.matches$Bait.Krogan, bait),
+                                   M=str_detect(complex.matches$Bait.Mann, bait),
+                                   L=str_detect(complex.matches$Bait.Liang, bait)), 
+                            na.rm=T)
+    int.pos <- which(num_evidence > 0)
+    
+    interactions <- rbind(interactions,
+                          tibble(source=bait,
+                                 target=complex.matches$`Gene names`[int.pos],
+                                 n=0))#num_evidence[int.pos]))
+  }
+  # Edge file
+  write_tsv(interactions, here(str_c("tables/networks/edges_", str_replace(complex, "/", "_"), ".tsv")), na="")
+}
+
+
+
+
 
 interactions <- bg("interactions") %>%
   bg_constrain(taxId = 9606, 
-               geneList = str_c(as.vector(diff.proteins$`First_GeneID`[!is.na(diff.proteins$`First_GeneID`)]), collapse="|"),
+               geneList = str_c(as.vector(complex.matches$`subunits(Entrez IDs)`[!is.na(complex.matches$`subunits(Entrez IDs)`)]), collapse="|"),
                searchIds = T,
                includeInteractors = F) %>%
   bg_get_results()
+
+if (nrow(interactions) > 0) {
+  interactions <- interactions %>%
+    filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
+    filter(entrez_gene_id_for_interactor_a != entrez_gene_id_for_interactor_b) %>%
+    mutate(official_symbol_for_interactor_a = getSYMBOL(as.character(entrez_gene_id_for_interactor_a), data='org.Hs.eg'),
+           official_symbol_for_interactor_b = getSYMBOL(as.character(entrez_gene_id_for_interactor_b), data='org.Hs.eg')) %>%
+    mutate(interactor_min = pmin(official_symbol_for_interactor_a, official_symbol_for_interactor_b),
+           interactor_max = pmax(official_symbol_for_interactor_a, official_symbol_for_interactor_b)) %>%
+    mutate(official_symbol_for_interactor_a = interactor_min, 
+           official_symbol_for_interactor_b = interactor_max) %>%
+    group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
+    summarise(n = n())
+}
+
 
 interactions <- interactions %>% filter(experimental_system_name != "Two-hybrid" & experimental_system_type == "physical") %>%
   filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
@@ -740,15 +907,8 @@ interactions <- interactions %>% filter(experimental_system_name != "Two-hybrid"
   group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
   summarise(n = n()) %>% filter(n > 1)
 
-# Node file
-CoV2.proteins <- c("E","M","N","S",
-                   str_c("Nsp", 1:16),
-                   str_c("Orf", c("3a", "3b", "6", "7a", "7b", "8", "9b", "10")))
-CoV2.proteins.not.diff <- CoV2.proteins[!CoV2.proteins %in% diff.proteins$`Gene names`]
 
-nodes <- select(diff.proteins, "Gene names", "First_GeneID", "SARS_CoV_2", "cluster", "is_unique_mutation", "Num cell surface evidence")
-nodes <- rbind(nodes, tibble("Gene names" = CoV2.proteins.not.diff, "First_GeneID" = NA, "SARS_CoV_2" = T, "cluster" = NA, "is_unique_mutation" = NA, "Num cell surface evidence" = NA))
-write_tsv(nodes, here("tables/nodes.tsv"), na="")
+
 
 
 
