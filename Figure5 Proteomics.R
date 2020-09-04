@@ -82,7 +82,7 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   
   heatmap.proteins <- Heatmap(proteins.z.scored,
                            # labels
-                           column_title = paste("Differentially Expressed Proteins\nn = ", nrow(proteins.z.scored), sep=""),
+                           column_title = paste("Differentially Expressed Proteins (n = ", nrow(proteins.z.scored), ")", sep=""),
                            column_title_gp = gpar(fontsize=7),
                            show_row_names = F,
                            row_names_gp = gpar(fontsize = 5),
@@ -102,12 +102,11 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
                            cluster_row_slices = F,
                            show_row_dend = F,
                            #cluster_rows = row.clusters,
-                           #split=7,
                            split = row.clusters,
                            # labels
                            row_title_rot = 0,
                            row_title_gp = gpar(fontsize=7),
-                           row_title = NULL,
+                           #row_title = NULL,
                            # size
                            width=ncol(proteins.z.scored)*0.2
   )
@@ -124,7 +123,7 @@ plotHeatmap <- function(proteins.z.scored, diff.proteins, design)
   
   ht_list = heatmap.proteins + cluster.rowAnnot + gene.rowAnnot
   
-  gb_heatmap = grid.grabExpr(draw(ht_list), height=5, width=2.5)
+  gb_heatmap = grid.grabExpr(draw(ht_list), height=3.5, width=2.5)
 }
 
 ################################################################################
@@ -297,9 +296,9 @@ plotEnrichment <- function(proteins, diff.proteins, num.clusters)
   enrichment.results$category[str_detect(enrichment.results$Description, "^REACTOME")] <- "Reactome"
   enrichment.results$category[str_detect(enrichment.results$Description, "^GO")] <- "Gene Ontology"
   
-  num.in.cluster <- (diff.proteins.averaged.condition.fc.mock %>%
+  num.in.cluster <- (diff.proteins %>%
                        group_by(cluster) %>% 
-                       summarise(n=n() / (nlevels(Condition)-1)))
+                       summarise(n=n()))
   
   enrichment.results$ratio <- enrichment.results$Count / num.in.cluster$n[enrichment.results$cluster]
   
@@ -323,7 +322,6 @@ plotEnrichment <- function(proteins, diff.proteins, num.clusters)
                                                                                   "GO_INTRINSIC_COMPONENT_OF_PLASMA_MEMBRANE", 
                                                                                   "GO_SPINDLE", 
                                                                                   "GO_ANAPHASE_PROMOTING_COMPLEX", 
-                                                                                  "GO_CULLIN_RING_UBIQUITIN_LIGASE_COMPLEX", 
                                                                                   "GO_UBIQUITIN_LIGASE_COMPLEX", 
                                                                                   "GO_REPLICATION_FORK", 
                                                                                   "GO_PHAGOCYTIC_VESICLE_MEMBRANE", 
@@ -355,7 +353,6 @@ plotEnrichment <- function(proteins, diff.proteins, num.clusters)
   enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_INTRINSIC_COMPONENT_OF_PLASMA_MEMBRANE")] <- "Plasma membrane"
   enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_SPINDLE")] <- "Spindle"
   enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_ANAPHASE_PROMOTING_COMPLEX")] <- "Anaphase promoting complex"
-  enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_CULLIN_RING_UBIQUITIN_LIGASE_COMPLEX")] <- "Cullin-RING ubiquitin ligase complex"
   enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_UBIQUITIN_LIGASE_COMPLEX")] <- "Ubiquitin ligase complex"
   enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_REPLICATION_FORK")] <- "Replication Fork"
   enrichment.results.pruned$Description[which(enrichment.results.pruned$Description == "GO_PHAGOCYTIC_VESICLE_MEMBRANE")] <- "Phagocytic vesicle membrane"
@@ -709,16 +706,12 @@ figEnrichment <- plotEnrichment(proteins, diff.proteins, num.clusters)
 F5.top <- arrangeGrob(figPCA, figCOVProfiles, figVolcano,
                   nrow = 1,
                   ncol = 3)
-F5.bottom.left <- arrangeGrob(figHeatmap, figClusterProfiles,
-                         widths = unit(c(2.3, 1.3, 2, 1.25), "in"),
-                         nrow = 1,
-                         ncol = 4)
-
 
 #grid.draw(F5.top)  # to view the plot
 saveFig(F5.top, "Figure5_top", 9, 6.85)
-saveFig(F5.bottom.left, "Figure5_bottom_left", 5, 6.85)
-saveFig(figEnrichment, "Figure5_bottom_right", 2.75, 2.5)
+saveFig(figHeatmap, "Figure5_heatmap", 3.5, 2.3)
+saveFig(figClusterProfiles, "Figure5_profiles", 6, 1.3)
+saveFig(figEnrichment, "Figure5_bottom_right", 3.1, 2.5)
 
 ################################################################################
 # Cytoscape output
