@@ -182,23 +182,41 @@ plotClusterProfiles <- function(diff.proteins.averaged.condition.fc.mock)
 ################################################################################
 # Profile plots of SARS-CoV-2 proteins
 ################################################################################
-plotCoVProfiles <- function(proteins)
+plotCoVProfiles <- function(proteins, proteins.avg)
 {
   SARS2.prots <- (proteins %>%
                     filter(SARS_CoV_2 == T & !str_detect(Condition, "Mock")) %>%
                     mutate(Condition = as.numeric(str_replace(Condition, " hr", ""))) %>%
-                    mutate(Label = `Gene names`))
-  SARS2.prots$Label[which(SARS2.prots$Condition != "96")] <- ""
+                    mutate(Label = `Gene names`) %>%
+                    mutate(FC.new = 2^(FC)))
   
-  p <- (ggplot(SARS2.prots, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
+  SARS2.prots.avg <- (proteins.avg %>%
+                    filter(SARS_CoV_2 == T & !str_detect(Condition, "Mock")) %>%
+                    mutate(Condition = as.numeric(str_replace(Condition, " hr", ""))) %>%
+                    mutate(Label = `Gene names`))
+  
+  dfwc_between <- summarySE(data=SARS2.prots, measurevar="FC.new", groupvars=c("Condition","Label"), na.rm=FALSE, conf.interval=.95)
+  SARS2.prots.avg <- SARS2.prots.avg %>% 
+    left_join(dfwc_between, by = c("Label", "Condition"), suffix=c("","y")) %>%
+    filter(Label != "Nsp8")
+  
+  SARS2.prots.avg$Label[which(SARS2.prots.avg$Condition != "96")] <- ""
+  
+  
+  
+  p <- (ggplot(SARS2.prots.avg, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
         
-        + geom_line(size=0.5, alpha=1, color=medium.grey)
-        + geom_point(size=1, color=medium.grey)
+        + geom_ribbon(aes(ymin = log2(FC.new-se), ymax = log2(FC.new+se)), fill = "black", alpha=0.075)
+        #+ geom_errorbar(width=3, color=light.grey,
+        #                aes(ymin=log2(FC.new-se),
+        #                    ymax=log2(FC.new+se)))
+        + geom_line(size=0.35, alpha=0.80, color="#555555") #medium.grey
+        + geom_point(size=0.75, color="#555555") #medium.grey
         + geom_text(size=2)
         
         + ggtitle("SARS-CoV-2 Proteins")
         
-        + scale_y_continuous(name = "log2(Intensity / 4h Mock)", breaks = seq(0,5,1))
+        + scale_y_continuous(name = "log2(Intensity / 4h Mock)", breaks = seq(0,6,1))
         + scale_x_continuous(name = "Hours post-infection", 
                              breaks = c(4, 12, 24, 48, 72, 96),
                              expand = c(0.05, 0))
@@ -689,6 +707,16 @@ diff.proteins.averaged.condition.fc.mock <- (diff.proteins.averaged.condition %>
                                                mutate(Mock = str_detect(Condition, "Mock")) %>%
                                                mutate(Time = str_extract(Condition, "\\d+")))
 
+proteins.fc.mock <- (proteins %>%
+                            pivot_longer(all_of(quant.colnames), names_to="Condition", values_to="FC") %>%
+                            mutate(Replicate = str_extract(Condition, "\\d+$")) %>%
+                            mutate(Condition = str_extract(Condition, ".*(?=( Rep ))")) %>%
+                            left_join(filter(., Condition == "Mock - 4 hr"), by=c("Gene names", "Replicate"), suffix=c("",".mock")) %>%
+                            mutate(FC = FC - FC.mock) %>%
+                            mutate(Condition = factor(Condition, levels=c("Mock - 4 hr", "4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "Mock - 96 hr"))) %>%
+                            mutate(Mock = str_detect(Condition, "Mock")) %>%
+                            mutate(Time = str_extract(Condition, "\\d+")))
+
 
 
 
@@ -698,7 +726,7 @@ diff.proteins.averaged.condition.fc.mock <- (diff.proteins.averaged.condition %>
 figPCA <- plotPCA(normalized.data, design)
 figHeatmap <- plotHeatmap(proteins.z.scored, diff.proteins, design)
 figClusterProfiles <- plotClusterProfiles(diff.proteins.averaged.condition.fc.mock)
-figCOVProfiles <- plotCoVProfiles(proteins.averaged.condition.fc.mock)
+figCOVProfiles <- plotCoVProfiles(proteins.fc.mock, proteins.averaged.condition.fc.mock)
 figVolcano <- plotVolcano(proteins)
 figEnrichment <- plotEnrichment(proteins, diff.proteins, num.clusters)
 
@@ -712,6 +740,8 @@ saveFig(F5.top, "Figure5_top", 9, 6.85)
 saveFig(figHeatmap, "Figure5_heatmap", 3.5, 2.3)
 saveFig(figClusterProfiles, "Figure5_profiles", 6, 1.3)
 saveFig(figEnrichment, "Figure5_bottom_right", 3.1, 2.5)
+
+
 
 ################################################################################
 # Cytoscape output
@@ -870,35 +900,35 @@ for (complex in unique(corum.matches$ComplexName)) {
 
 
 
-interactions <- bg("interactions") %>%
-  bg_constrain(taxId = 9606, 
-               geneList = str_c(as.vector(complex.matches$`subunits(Entrez IDs)`[!is.na(complex.matches$`subunits(Entrez IDs)`)]), collapse="|"),
-               searchIds = T,
-               includeInteractors = F) %>%
-  bg_get_results()
+# interactions <- bg("interactions") %>%
+#   bg_constrain(taxId = 9606, 
+#                geneList = str_c(as.vector(complex.matches$`subunits(Entrez IDs)`[!is.na(complex.matches$`subunits(Entrez IDs)`)]), collapse="|"),
+#                searchIds = T,
+#                includeInteractors = F) %>%
+#   bg_get_results()
+# 
+# if (nrow(interactions) > 0) {
+#   interactions <- interactions %>%
+#     filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
+#     filter(entrez_gene_id_for_interactor_a != entrez_gene_id_for_interactor_b) %>%
+#     mutate(official_symbol_for_interactor_a = getSYMBOL(as.character(entrez_gene_id_for_interactor_a), data='org.Hs.eg'),
+#            official_symbol_for_interactor_b = getSYMBOL(as.character(entrez_gene_id_for_interactor_b), data='org.Hs.eg')) %>%
+#     mutate(interactor_min = pmin(official_symbol_for_interactor_a, official_symbol_for_interactor_b),
+#            interactor_max = pmax(official_symbol_for_interactor_a, official_symbol_for_interactor_b)) %>%
+#     mutate(official_symbol_for_interactor_a = interactor_min, 
+#            official_symbol_for_interactor_b = interactor_max) %>%
+#     group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
+#     summarise(n = n())
+# }
 
-if (nrow(interactions) > 0) {
-  interactions <- interactions %>%
-    filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
-    filter(entrez_gene_id_for_interactor_a != entrez_gene_id_for_interactor_b) %>%
-    mutate(official_symbol_for_interactor_a = getSYMBOL(as.character(entrez_gene_id_for_interactor_a), data='org.Hs.eg'),
-           official_symbol_for_interactor_b = getSYMBOL(as.character(entrez_gene_id_for_interactor_b), data='org.Hs.eg')) %>%
-    mutate(interactor_min = pmin(official_symbol_for_interactor_a, official_symbol_for_interactor_b),
-           interactor_max = pmax(official_symbol_for_interactor_a, official_symbol_for_interactor_b)) %>%
-    mutate(official_symbol_for_interactor_a = interactor_min, 
-           official_symbol_for_interactor_b = interactor_max) %>%
-    group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
-    summarise(n = n())
-}
 
-
-interactions <- interactions %>% filter(experimental_system_name != "Two-hybrid" & experimental_system_type == "physical") %>%
-  filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
-  filter(entrez_gene_id_for_interactor_a != entrez_gene_id_for_interactor_b) %>%
-  mutate(official_symbol_for_interactor_a = getSYMBOL(as.character(entrez_gene_id_for_interactor_a), data='org.Hs.eg'),
-         official_symbol_for_interactor_b = getSYMBOL(as.character(entrez_gene_id_for_interactor_b), data='org.Hs.eg')) %>%
-  group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
-  summarise(n = n()) %>% filter(n > 1)
+#interactions <- interactions %>% filter(experimental_system_name != "Two-hybrid" & experimental_system_type == "physical") %>%
+#  filter(entrez_gene_id_for_interactor_a != "-" & entrez_gene_id_for_interactor_b != "-") %>%
+#  filter(entrez_gene_id_for_interactor_a != entrez_gene_id_for_interactor_b) %>%
+#  mutate(official_symbol_for_interactor_a = getSYMBOL(as.character(entrez_gene_id_for_interactor_a), data='org.Hs.eg'),
+#         official_symbol_for_interactor_b = getSYMBOL(as.character(entrez_gene_id_for_interactor_b), data='org.Hs.eg')) %>%
+#  group_by(official_symbol_for_interactor_a, official_symbol_for_interactor_b) %>%
+#  summarise(n = n()) %>% filter(n > 1)
 
 
 
@@ -907,21 +937,21 @@ interactions <- interactions %>% filter(experimental_system_name != "Two-hybrid"
 
 
 # Edges SARS-CoV-2
-CoV2.interactions <- tibble()
-for (bait in CoV2.proteins) {
-  num_evidence <- rowSums(tibble(K=str_detect(diff.proteins$Bait.Krogan, bait),
-                                 M=str_detect(diff.proteins$Bait.Mann, bait),
-                                 L=str_detect(diff.proteins$Bait.Liang, bait)), 
-                          na.rm=T)
-  int.pos <- which(num_evidence > 0)
-  
-  CoV2.interactions <- rbind(CoV2.interactions, tibble(official_symbol_for_interactor_a=bait, 
-                                                       official_symbol_for_interactor_b=diff.proteins$`Gene names`[int.pos], 
-                                                       n=num_evidence[int.pos]))
-}
+#CoV2.interactions <- tibble()
+#for (bait in CoV2.proteins) {
+#  num_evidence <- rowSums(tibble(K=str_detect(diff.proteins$Bait.Krogan, bait),
+#                                 M=str_detect(diff.proteins$Bait.Mann, bait),
+#                                 L=str_detect(diff.proteins$Bait.Liang, bait)), 
+#                          na.rm=T)
+#  int.pos <- which(num_evidence > 0)
+#  
+#  CoV2.interactions <- rbind(CoV2.interactions, tibble(official_symbol_for_interactor_a=bait, 
+#                                                       official_symbol_for_interactor_b=diff.proteins$`Gene names`[int.pos], 
+#                                                       n=num_evidence[int.pos]))
+#}
 # Edge file
-edges <- rbind(interactions, CoV2.interactions)
-write_tsv(edges, here("tables/edges.tsv"), na="")
+#edges <- rbind(interactions, CoV2.interactions)
+#write_tsv(edges, here("tables/edges.tsv"), na="")
 
 
 ################################################################################
