@@ -659,8 +659,8 @@ heatmap.of.proteins <- Heatmap(normalized.immune.heatmap.data,
                             #REST UNEDITED 
                             # clustering
                             cluster_columns = F,
-                            clustering_distance_rows = "pearson",
-                            cluster_row_slices = F,
+                            clustering_distance_rows = "euclidean",
+                            cluster_rows = T,
                             show_row_dend = F,
                             #cluster_rows = row.clusters,
                             #split=7, #probs dont wanna split
@@ -853,5 +853,5 @@ saveFig(figEnrichment, "Figure5_bottom_right", 2.75, 2.5)
 ################################################################################
 # Write processed data
 ################################################################################
-write_tsv(proteins, here("data_processed/proteinsNormedToBridge.txt"))
+write_csv(proteins, here("data_processed/proteinsNormedToBridge.txt"))
 
