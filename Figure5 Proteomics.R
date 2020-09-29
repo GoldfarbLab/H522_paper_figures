@@ -561,21 +561,128 @@ interferon.response.beta <- read_csv(here("annotations/interferon_response_beta.
 interferon.response.gamma <-  read_csv(here("annotations/interferon_response_gamma.txt"))  %>% mutate(Interferon.Gamma = TRUE)
 interferon.regulation.type1 <-  read_csv(here("annotations/regulation_of_type_I_interferon_mediated_signaling_pathway.txt"))  %>% mutate(Interferon.TypeI = TRUE)
 interferon.regulation.type2.immune.response <-  read_csv(here("annotations/regulation_type_2_immune_response.txt"))  %>% mutate(Interferon.TypeII = TRUE)
-antigen.processing.presentation <- read_csv(here("annotations/antigen_processing_and_presentation.txt"))  %>% mutate(Interferon.Antigen.Processing = TRUE)
+#antigen.processing.presentation <- read_csv(here("annotations/antigen_processing_and_presentation.txt"))  %>% mutate(Interferon.Antigen.Processing = TRUE)
 
 proteins <- left_join(proteins, interferon.response.alpha, by=c("Gene names" = "GO_CELLULAR_RESPONSE_TO_INTERFERON_ALPHA"))
 proteins <- left_join(proteins, interferon.response.beta, by=c("Gene names" = "GO_CELLULAR_RESPONSE_TO_INTERFERON_BETA"))
 proteins <- left_join(proteins, interferon.response.gamma, by=c("Gene names" = "GO_RESPONSE_TO_INTERFERON_GAMMA"))
 proteins <- left_join(proteins, interferon.regulation.type1, by=c("Gene names" = "GO_REGULATION_OF_TYPE_I_INTERFERON_MEDIATED_SIGNALING_PATHWAY"))
 proteins <- left_join(proteins, interferon.regulation.type2.immune.response, by=c("Gene names" = "GO_REGULATION_OF_TYPE_2_IMMUNE_RESPONSE"))
-proteins <- left_join(proteins, antigen.processing.presentation, by=c("Gene names" = "GO_ANTIGEN_PROCESSING_AND_PRESENTATION"))
+#proteins <- left_join(proteins, antigen.processing.presentation, by=c("Gene names" = "GO_ANTIGEN_PROCESSING_AND_PRESENTATION"))
 
-proteins$Inteferon_Response <- proteins$Interferon.Alpha == TRUE | proteins$Interferon.Beta == TRUE | proteins$Interferon.Gamma == TRUE | proteins$Interferon.TypeI == TRUE | proteins$Interferon.TypeII == TRUE | proteins$Interferon.Antigen.Processing == TRUE
+proteins$Inteferon_Response <- proteins$Interferon.Alpha == TRUE | proteins$Interferon.Beta == TRUE | proteins$Interferon.Gamma == TRUE | proteins$Interferon.TypeI == TRUE | proteins$Interferon.TypeII == TRUE #| proteins$Interferon.Antigen.Processing == TRUE
 
 # is it mutated?
 proteins <- left_join(proteins, H522.mutations, by=c("Gene names" = "GeneName"))
 # is it a cell surface or plasma membrane protein?
 proteins <- left_join(proteins, human_surface_and_plasma_membrane_protLevel, by=c("Leading canonical" = "UniProt"))
+
+#Immune Response Heatmap 
+
+heatmap.proteins <- filter(proteins, proteins$Inteferon_Response == TRUE)
+heatmap.proteins$`Gene names`[which(heatmap.proteins$`Gene names` == 'RAB34' & heatmap.proteins$`Protein IDs` == "P0DI83")] <- "RAB34 (Iso NARR)" #hardcode changing the repeat
+heatmap.proteins$`Gene names`[which(heatmap.proteins$`Gene names` == 'RAB34' & heatmap.proteins$`Protein IDs` == "Q9BZG1;Q9BZG1-4;Q9BZG1-2")] <- "RAB34"
+#not sure if above lines are doing anything anymore since we removed so many proteins 
+
+interferon.type <- as.matrix(select(heatmap.proteins, grep("Interferon", colnames(heatmap.proteins), value=T)))
+interferon.type <-  is.na(interferon.type)
+
+heatmap.proteins <- select(heatmap.proteins,"Gene names", grep("hr", colnames(heatmap.proteins), value=T))
+
+#NORMALIZATION OF HEATMAP PROTEINS
+normalized.heatmap.proteins <- (heatmap.proteins %>%
+                                  pivot_longer(all_of(quant.colnames), names_to="Condition", values_to="FC") %>%
+                                  mutate(Condition = str_extract(Condition, ".*(?=( Rep ))")) %>%
+                                  group_by(`Gene names`, Condition) %>%
+                                  summarise_at(c("FC"), mean, na.rm=T))
+
+normalized.heatmap.proteins.fc.mock <- (normalized.heatmap.proteins %>%
+                                          left_join(filter(., Condition == "Mock - 4 hr"), by="Gene names", suffix=c("",".mock")) %>%
+                                          mutate(FC = FC - FC.mock) %>%
+                                          mutate(Condition = factor(Condition, levels=c("Mock - 4 hr", "4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "Mock - 96 hr"))) %>%
+                                          mutate(Mock = str_detect(Condition, "Mock")) %>%
+                                          mutate(Time = str_extract(Condition, "\\d+")))
+
+#flip table back around 
+normalized.heatmap.proteins.fc.mock <- select(normalized.heatmap.proteins.fc.mock, "Gene names", as.character("Condition"), "FC")
+normalized.immune.heatmap.data <- (normalized.heatmap.proteins.fc.mock %>% ungroup() %>%
+                                  pivot_wider(id_cols= "Gene names", names_from= "Condition", values_from= "FC") %>%
+                                  select(-starts_with("Mock"), -"Gene names"))
+            
+rownames(normalized.immune.heatmap.data) <- heatmap.proteins$'Gene names' 
+rownames(interferon.type) <- heatmap.proteins$"Gene names"
+heatmap.annotations <- heatmap.proteins
+
+normalized.immune.heatmap.data <- as.matrix(normalized.immune.heatmap.data) #heatmaps need a matrix 
+#stuff that needs to go in plotImmuneHeatmap function 
+#colnames(heatmap.proteins) <- paste(design$Condition, design$Replicate)
+#heatmap.proteins <- heatmap.proteins[, c(1,9,17, 2,10,18, 3,11,19, 4,12,20, 5,13,21, 6,14,22, 7,15,23, 8,16,24)]
+labels <- heatmap.annotations$`Gene names`
+
+heatmap.pathway <- Heatmap(apply(interferon.type, 2, as.integer),
+                           # labels
+                           column_title = paste("Interferon Type"),
+                           column_title_gp = gpar(fontsize=10),
+                           row_title = "Gene Name",
+                           row_title_gp = gpar(fontsize=10),
+                           #row_title_side = "right",
+                           
+                           show_row_names = F,
+                           #row_names_gp = gpar(fontsize = 3),
+                           row_names_side = "right",
+                           column_names_gp = gpar(fontsize = 6),
+                           col = c("red", "white"),
+                           #na_col = "white",
+                           show_heatmap_legend = F,
+                           #clustering
+                           cluster_columns = F,
+                           cluster_rows = F,
+                           width=1
+                           )
+
+heatmap.of.proteins <- Heatmap(normalized.immune.heatmap.data,
+                            # labels
+                            column_title = paste("Immune Response Proteins\nn = ", nrow(normalized.immune.heatmap.data), sep=""),
+                            column_title_gp = gpar(fontsize=7),
+                            show_row_names = T,
+                            row_names_gp = gpar(fontsize = 3),
+                            row_names_side = "right",
+                            column_names_gp = gpar(fontsize = 6),
+                            name = "z-score",
+                            col = colorRamp2(seq(-3, 3, length=256), rev(colorRampPalette(brewer.pal(10, "RdBu"))(256))),
+                            # legends
+                            show_heatmap_legend = F,
+                            heatmap_legend_param = list(color_bar = "continuous",
+                                                        title_gp = gpar(fontsize = 6),
+                                                        labels_gp = gpar(fontsize = 6),
+                                                        grid_width = unit(2,"mm")),   
+                            #REST UNEDITED 
+                            # clustering
+                            cluster_columns = F,
+                            clustering_distance_rows = "pearson",
+                            cluster_row_slices = F,
+                            show_row_dend = F,
+                            #cluster_rows = row.clusters,
+                            #split=7, #probs dont wanna split
+                            #split = row.clusters,
+                            # labels
+                            row_title_rot = 0,
+                            row_title_gp = gpar(fontsize=7),
+                            
+                            # size
+                            width=ncol(heatmap.proteins)*0.2)
+heatmap.list <-  heatmap.pathway + heatmap.of.proteins 
+fig <- draw(heatmap.list)
+grid.grabExpr(draw(heatmap.list), height=5, width=2.5)
+plotImmuneHeatmap <- function(heatmap.proteins, heatmap.annotations, design)
+{
+  colnames(heatmap.proteins) <- paste(design$Condition, design$Replicate)
+  #colnames(heatmap.proteins)[which(str_detect(colnames(proteins.z.scored), "1$"))] <- "1"
+  #colnames(heatmap.proteins)[which(str_detect(colnames(proteins.z.scored), "3$"))] <- "3"
+  # reorder columns
+  heatmap.proteins <- heatmap.proteins[, c(1,9,17, 2,10,18, 3,11,19, 4,12,20, 5,13,21, 6,14,22, 7,15,23, 8,16,24)]
+  print(heatmap.proteins)
+}
 ################################################################################
 # Stats
 ################################################################################
