@@ -614,75 +614,68 @@ rownames(interferon.type) <- heatmap.proteins$"Gene names"
 heatmap.annotations <- heatmap.proteins
 
 normalized.immune.heatmap.data <- as.matrix(normalized.immune.heatmap.data) #heatmaps need a matrix 
-#stuff that needs to go in plotImmuneHeatmap function 
-#colnames(heatmap.proteins) <- paste(design$Condition, design$Replicate)
-#heatmap.proteins <- heatmap.proteins[, c(1,9,17, 2,10,18, 3,11,19, 4,12,20, 5,13,21, 6,14,22, 7,15,23, 8,16,24)]
+
 labels <- heatmap.annotations$`Gene names`
 
-heatmap.pathway <- Heatmap(apply(interferon.type, 2, as.integer),
-                           # labels
-                           column_title = paste("Interferon Type"),
-                           column_title_gp = gpar(fontsize=10),
-                           row_title = "Gene Name",
-                           row_title_gp = gpar(fontsize=10),
-                           #row_title_side = "right",
-                           
-                           show_row_names = F,
-                           #row_names_gp = gpar(fontsize = 3),
-                           row_names_side = "right",
-                           column_names_gp = gpar(fontsize = 6),
-                           col = c("red", "white"),
-                           #na_col = "white",
-                           show_heatmap_legend = F,
-                           #clustering
-                           cluster_columns = F,
-                           cluster_rows = F,
-                           width=1
-                           )
 
-heatmap.of.proteins <- Heatmap(normalized.immune.heatmap.data,
-                            # labels
-                            column_title = paste("Immune Response Proteins\nn = ", nrow(normalized.immune.heatmap.data), sep=""),
-                            column_title_gp = gpar(fontsize=7),
-                            show_row_names = T,
-                            row_names_gp = gpar(fontsize = 3),
-                            row_names_side = "right",
-                            column_names_gp = gpar(fontsize = 6),
-                            name = "z-score",
-                            col = colorRamp2(seq(-3, 3, length=256), rev(colorRampPalette(brewer.pal(10, "RdBu"))(256))),
-                            # legends
-                            show_heatmap_legend = F,
-                            heatmap_legend_param = list(color_bar = "continuous",
-                                                        title_gp = gpar(fontsize = 6),
-                                                        labels_gp = gpar(fontsize = 6),
-                                                        grid_width = unit(2,"mm")),   
-                            #REST UNEDITED 
-                            # clustering
-                            cluster_columns = F,
-                            clustering_distance_rows = "euclidean",
-                            cluster_rows = T,
-                            show_row_dend = F,
-                            #cluster_rows = row.clusters,
-                            #split=7, #probs dont wanna split
-                            #split = row.clusters,
-                            # labels
-                            row_title_rot = 0,
-                            row_title_gp = gpar(fontsize=7),
-                            
-                            # size
-                            width=ncol(heatmap.proteins)*0.2)
-heatmap.list <-  heatmap.pathway + heatmap.of.proteins 
-fig <- draw(heatmap.list)
-grid.grabExpr(draw(heatmap.list), height=5, width=2.5)
-plotImmuneHeatmap <- function(heatmap.proteins, heatmap.annotations, design)
+plotImmuneHeatmap <- function(interferon.type, normalized.immune.heatmap.data)
 {
-  colnames(heatmap.proteins) <- paste(design$Condition, design$Replicate)
-  #colnames(heatmap.proteins)[which(str_detect(colnames(proteins.z.scored), "1$"))] <- "1"
-  #colnames(heatmap.proteins)[which(str_detect(colnames(proteins.z.scored), "3$"))] <- "3"
-  # reorder columns
-  heatmap.proteins <- heatmap.proteins[, c(1,9,17, 2,10,18, 3,11,19, 4,12,20, 5,13,21, 6,14,22, 7,15,23, 8,16,24)]
-  print(heatmap.proteins)
+  heatmap.pathway <- Heatmap(apply(interferon.type, 2, as.integer),
+                             # labels
+                             column_title = paste("Interferon Type"),
+                             column_title_gp = gpar(fontsize=5.5),
+                             #row_title = "Gene Name",
+                             #row_title_gp = gpar(fontsize=10),
+                             #row_title_side = "right",
+                             show_row_names = F,
+                             #row_names_gp = gpar(fontsize = 3),
+                             #row_names_side = "right",
+                             column_names_gp = gpar(fontsize = 4),
+                             col = c("red", "white"),
+                             #na_col = "white",
+                             show_heatmap_legend = F,
+                             #clustering
+                             cluster_columns = F,
+                             cluster_rows = F,
+                             width=.75
+  )
+  
+  heatmap.of.proteins <- Heatmap(normalized.immune.heatmap.data,
+                                 # labels
+                                 column_title = paste("Immune Response Proteins\nn = ", nrow(normalized.immune.heatmap.data), sep=""),
+                                 column_title_gp = gpar(fontsize=5.5),
+                                 show_row_names = T,
+                                 row_names_gp = gpar(fontsize = 3),
+                                 row_names_side = "right",
+                                 column_names_gp = gpar(fontsize = 4),
+                                 name = "z-score",
+                                 col = colorRamp2(seq(-3, 3, length=256), rev(colorRampPalette(brewer.pal(10, "RdBu"))(256))),
+                                 # legends
+                                 show_heatmap_legend = F,
+                                 heatmap_legend_param = list(color_bar = "continuous",
+                                                             title_gp = gpar(fontsize = 6),
+                                                             labels_gp = gpar(fontsize = 6),
+                                                             grid_width = unit(2,"mm")),   
+                                 #REST UNEDITED 
+                                 # clustering
+                                 cluster_columns = F,
+                                 clustering_distance_rows = "euclidean",
+                                 cluster_rows = T,
+                                 show_row_dend = F,
+                                 #cluster_rows = row.clusters,
+                                 #split=7, #probs dont wanna split
+                                 #split = row.clusters,
+                                 # labels
+                                 row_title_rot = 0,
+                                 row_title_gp = gpar(fontsize=7),
+                                 
+                                 # size
+                                 width=ncol(normalized.immune.heatmap.data)*0.2)
+  heatmap.list <-  heatmap.pathway + heatmap.of.proteins 
+  #interferon_heatmap <- draw(heatmap.list)
+  interferon_heatmap <- grid.grabExpr(draw(heatmap.list), height=6.5, width=2)
 }
+
 ################################################################################
 # Stats
 ################################################################################
@@ -808,7 +801,7 @@ figClusterProfiles <- plotClusterProfiles(diff.proteins.averaged.condition.fc.mo
 figCOVProfiles <- plotCoVProfiles(proteins.averaged.condition.fc.mock)
 figVolcano <- plotVolcano(proteins)
 figEnrichment <- plotEnrichment(proteins, diff.proteins, num.clusters)
-
+figInterferonResponseHeatmap <- plotImmuneHeatmap(interferon.type, normalized.immune.heatmap.data)
 
 F5.top <- arrangeGrob(figPCA, figCOVProfiles, figVolcano,
                   nrow = 1,
@@ -823,7 +816,7 @@ F5.bottom.left <- arrangeGrob(figHeatmap, figClusterProfiles,
 saveFig(F5.top, "Figure5_top", 9, 6.85)
 saveFig(F5.bottom.left, "Figure5_bottom_left", 5, 6.85)
 saveFig(figEnrichment, "Figure5_bottom_right", 2.75, 2.5)
-
+saveFig(figInterferonResponseHeatmap, "InterferonResponse_Heatmap", 6.5, 2)
 ################################################################################
 # Cytoscape output
 ################################################################################
@@ -853,5 +846,7 @@ saveFig(figEnrichment, "Figure5_bottom_right", 2.75, 2.5)
 ################################################################################
 # Write processed data
 ################################################################################
-write_csv(proteins, here("data_processed/proteinsNormedToBridge.txt"))
+#make a new column to talk about sigs 
+#proteins %>% filter(logFC > log.fc.threshold)
+write_csv(proteins, here("data_processed/proteinsNormedToBridge.csv")) #make NAs nothing ("")
 
