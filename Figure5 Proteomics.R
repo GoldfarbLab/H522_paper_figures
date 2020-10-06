@@ -445,8 +445,9 @@ SARS.interactors.mann <- read_csv("annotations/Mann_Interactors_Caco2.csv") %>%
 
 SARS.interactors.liang <- read_tsv(here("annotations/Liang_interactors.txt")) %>% 
   mutate(Bait.Liang = Bait) %>% 
-  select("Bait.Liang", "Gene name")
-  
+  select("Bait.Liang", "Gene name") %>% 
+  group_by(`Gene name`) %>% 
+  summarise(Bait.Liang = str_c(base::unique(Bait.Liang), collapse = ";"))
 
 H522.mutations <- read_tsv(here("annotations/H522_mutations.tsv"))
 uniprot.mapping <- read_tsv(here("annotations/uniprot_mapping.tsv.zip"))
@@ -846,7 +847,24 @@ saveFig(figInterferonResponseHeatmap, "InterferonResponse_Heatmap", 6.5, 2)
 ################################################################################
 # Write processed data
 ################################################################################
+proteins.averaged.condition.2 <- (proteins %>%
+                                  pivot_longer(all_of(quant.colnames), names_to="Condition", values_to="FC") %>%
+                                  mutate(Condition = str_extract(Condition, ".*(?=( Rep ))")) %>%
+                                  group_by(`Protein IDs`, Condition) %>%
+                                  summarise_at(c("FC","cluster","SARS_CoV_2"), mean, na.rm=T))
+proteins.averaged.condition.fc.mock.2 <- (proteins.averaged.condition.2
+                                          %>%
+                                          left_join(filter(., Condition == "Mock - 4 hr"), by="Protein IDs", suffix=c("",".mock")) %>%
+                                          mutate(FC = FC - FC.mock) %>%
+                                          mutate(Condition = factor(Condition, levels=c("Mock - 4 hr", "4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "Mock - 96 hr"))) %>%
+                                          mutate(Mock = str_detect(Condition, "Mock")) %>%
+                                          mutate(Time = str_extract(Condition, "\\d+")))
+
+proteins.averaged.condition.fc.mock.2 <- select(proteins.averaged.condition.fc.mock.2, "Protein IDs", as.character("Condition"), "FC")
+protein.data.normalized.4hmock <- (proteins.averaged.condition.fc.mock.2 %>% ungroup() %>%
+                                     pivot_wider(id_cols= "Protein IDs", names_from= "Condition", values_from= "FC"))
+#need to add proteins normalized to fc mock as well 
 #make a new column to talk about sigs 
 #proteins %>% filter(logFC > log.fc.threshold)
-write_csv(proteins, here("data_processed/proteinsNormedToBridge.csv")) #make NAs nothing ("")
+write_csv(proteins, here("data_processed/proteinsNormedToBridge.csv"), na="") 
 
