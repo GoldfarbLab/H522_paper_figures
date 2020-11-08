@@ -537,6 +537,9 @@ normalized.data <- cbind(normalization.data.rep1, normalization.data.rep2, norma
 #NaN and Inf Values? 
 normalized.data <- log2(normalized.data)
 
+createDir(here("data_processed"))
+write_tsv(tibble(correction = c(normalization.factor.rep1, normalization.factor.rep2, normalization.factor.rep3)), here("data_processed/protein_loading_correction_factors.tsv"))
+
 
 #remove Ref Channel (TMT9) after normalization (after normalization: all 0s) 
 ref.channel <- grep("Reporter intensity corrected 9", colnames(normalized.data), value = T)
