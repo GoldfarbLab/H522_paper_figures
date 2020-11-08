@@ -153,7 +153,7 @@ plotClusterProfiles <- function(diff.proteins.averaged.condition.fc.mock)
                                          linetype=as.factor(Mock),
                                          facet=cluster))
         
-        + geom_line(size=0.25, data = diff.proteins.averaged.condition.fc.MockOnly, color="#CCCCCC")
+        #+ geom_line(size=0.25, data = diff.proteins.averaged.condition.fc.MockOnly, color="#CCCCCC")
         + geom_line(size=0.25, alpha=0.5)
         + geom_line(size=0.4, data=representative.profiles, 
                     aes(x=as.numeric(Time), y=FC, group=interaction(as.factor(cluster), Mock)),
@@ -182,23 +182,41 @@ plotClusterProfiles <- function(diff.proteins.averaged.condition.fc.mock)
 ################################################################################
 # Profile plots of SARS-CoV-2 proteins
 ################################################################################
-plotCoVProfiles <- function(proteins)
+plotCoVProfiles <- function(proteins, proteins.avg)
 {
   SARS2.prots <- (proteins %>%
                     filter(SARS_CoV_2 == T & !str_detect(Condition, "Mock")) %>%
                     mutate(Condition = as.numeric(str_replace(Condition, " hr", ""))) %>%
-                    mutate(Label = `Gene names`))
-  SARS2.prots$Label[which(SARS2.prots$Condition != "96")] <- ""
+                    mutate(Label = `Gene names`) %>%
+                    mutate(FC.new = 2^(FC)))
   
-  p <- (ggplot(SARS2.prots, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
+  SARS2.prots.avg <- (proteins.avg %>%
+                        filter(SARS_CoV_2 == T & !str_detect(Condition, "Mock")) %>%
+                        mutate(Condition = as.numeric(str_replace(Condition, " hr", ""))) %>%
+                        mutate(Label = `Gene names`))
+  
+  dfwc_between <- summarySE(data=SARS2.prots, measurevar="FC.new", groupvars=c("Condition","Label"), na.rm=FALSE, conf.interval=.95)
+  SARS2.prots.avg <- SARS2.prots.avg %>% 
+    left_join(dfwc_between, by = c("Label", "Condition"), suffix=c("","y")) %>%
+    filter(!(Label %in% c("Nsp8")))
+  
+  SARS2.prots.avg$Label[which(SARS2.prots.avg$Condition != "96")] <- ""
+  
+  p <- (ggplot(SARS2.prots.avg, aes(x=Condition, y=FC, group=`Gene names`, label=Label))
         
-        + geom_line(size=0.5, alpha=1, color=medium.grey)
-        + geom_point(size=1, color=medium.grey)
-        + geom_text(size=2)
+        + geom_ribbon(aes(ymin = log2(FC.new-se), ymax = log2(FC.new+se)), fill = "black", alpha=0.075)
+        #+ geom_errorbar(width=3, color=light.grey,
+        #                aes(ymin=log2(FC.new-se),
+        #                    ymax=log2(FC.new+se)))
+        + geom_line(aes(color=`Gene names`), size=0.35) #medium.grey
+        + geom_point(aes(color=`Gene names`), size=0.75) #medium.grey
+        + geom_text(aes(color=`Gene names`, x=Condition+10), size=2)
         
         + ggtitle("SARS-CoV-2 Proteins")
         
-        + scale_y_continuous(name = "log2(Intensity / 4h Mock)", breaks = seq(0,5,1))
+        + scale_color_manual(values=colors.SARS.proteins)
+        
+        + scale_y_continuous(name = "log2(Intensity / 4h Mock)", breaks = seq(0,6,1), limits=c(-0.4,6.3))
         + scale_x_continuous(name = "Hours post-infection", 
                              breaks = c(4, 12, 24, 48, 72, 96),
                              expand = c(0.05, 0))
@@ -689,7 +707,15 @@ diff.proteins.averaged.condition.fc.mock <- (diff.proteins.averaged.condition %>
                                                mutate(Mock = str_detect(Condition, "Mock")) %>%
                                                mutate(Time = str_extract(Condition, "\\d+")))
 
-
+proteins.fc.mock <- (proteins %>%
+                       pivot_longer(all_of(quant.colnames), names_to="Condition", values_to="FC") %>%
+                       mutate(Replicate = str_extract(Condition, "\\d+$")) %>%
+                       mutate(Condition = str_extract(Condition, ".*(?=( Rep ))")) %>%
+                       left_join(filter(., Condition == "Mock - 4 hr"), by=c("Gene names", "Replicate"), suffix=c("",".mock")) %>%
+                       mutate(FC = FC - FC.mock) %>%
+                       mutate(Condition = factor(Condition, levels=c("Mock - 4 hr", "4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "Mock - 96 hr"))) %>%
+                       mutate(Mock = str_detect(Condition, "Mock")) %>%
+                       mutate(Time = str_extract(Condition, "\\d+")))
 
 
 ################################################################################
@@ -698,7 +724,7 @@ diff.proteins.averaged.condition.fc.mock <- (diff.proteins.averaged.condition %>
 figPCA <- plotPCA(normalized.data, design)
 figHeatmap <- plotHeatmap(proteins.z.scored, diff.proteins, design)
 figClusterProfiles <- plotClusterProfiles(diff.proteins.averaged.condition.fc.mock)
-figCOVProfiles <- plotCoVProfiles(proteins.averaged.condition.fc.mock)
+figCOVProfiles <- plotCoVProfiles(proteins.fc.mock, proteins.averaged.condition.fc.mock)
 figVolcano <- plotVolcano(proteins)
 figEnrichment <- plotEnrichment(proteins, diff.proteins, num.clusters)
 

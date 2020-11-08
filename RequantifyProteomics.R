@@ -50,6 +50,7 @@ mod.peptides.aggregate <- mod.peptides %>% group_by(`Peptide ID`) %>% summarise_
 ################################################################################
 peptides <- read_tsv(here('data/MS/peptides.zip'), guess_max=10000)
 #peptides <- filter(peptides, `Unique (Groups)` == "yes")
+#peptides <- filter(peptides, `Unique (Proteins)` == "yes")
 
 # clear old quantification
 peptides[, intensity.col.rep.names] <- 0
