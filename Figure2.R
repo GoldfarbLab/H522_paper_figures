@@ -12,6 +12,8 @@ source(here("common.R"))
 data.neutralizing <- read_csv(here("data/Figure2A_S_neutralizing.csv"))
 data.fc <- read_csv(here("data/Figure2B_ACE2_Fc.csv"))
 data.blockingAB <- read_csv(here("data/Figure2C_ACE2_blocking.csv"))
+data.ace2.CRISPR <- read_csv(here("data/Figure2D_ACE2_CRISPR_BULK.csv"))
+data.ace2.CRISPR.blockingAB <- read_csv(here("data/Figure2_ACE2_CRISPR_blocking.csv"))
 data.incucyte <- read_csv(here("data/Figure2F_incucyte.csv"))
 
 ################################################################################
@@ -24,10 +26,13 @@ plotAB <- function(data, title, x.axis, y.axis) {
   p <- (ggplot(data, aes(x=as.factor(Concentration),
                          y=`Viral RNA`,
                          color=Cell.line,
+                         fill=Cell.line,
                          facet=Cell.line))
 
-        + geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
-        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white")
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.75)
+        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
+        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
+        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white")
         
 
         + ggtitle(title)
@@ -42,7 +47,7 @@ plotAB <- function(data, title, x.axis, y.axis) {
         
         + theme.basic
         + theme(legend.position = "none",
-                aspect.ratio = 0.8,
+                aspect.ratio = 0.7,
                 strip.text.x = element_text(size = 6))#angle=45, vjust=1, hjust=1))
   )
 }
@@ -68,12 +73,15 @@ plotBlocking <- function(data, title, x.axis, y.axis) {
   p <- (ggplot(data, aes(x=as.factor(Condition),
                                  y=log10(Copies),
                                  color=Cell.line,
+                                 fill=Cell.line,
                                  facet=Cell.line))
         
-        + geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.5)
+        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
+        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
         + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white")
-        + geom_text(data = anno, aes(x = xstar,  y = ystar, label = lab), size=2, color=medium.grey, family = "Arial")
-        + geom_segment(data = anno, aes(x = x1, xend = x2, y = y2, yend = y2), colour=medium.grey)
+        #+ geom_text(data = anno, aes(x = xstar,  y = ystar, label = lab), size=2, color=medium.grey, family = "Arial")
+        #+ geom_segment(data = anno, aes(x = x1, xend = x2, y = y2, yend = y2), colour=medium.grey)
         
         
         + ggtitle(title)
@@ -81,12 +89,99 @@ plotBlocking <- function(data, title, x.axis, y.axis) {
         + scale_y_continuous(name = y.axis,
                              breaks = c(0, 1, 2, 3, 4, 5, 6),
                              labels = c("1e0", "1e1", "1e2", "1e3", "1e4", "1e5", "1e6"),
-                             limits = c(0,6))
+                             limits = c(1,6))
         
         + scale_color_manual(name = "Cell.line", values=colors.Cell.line)
         + scale_fill_manual(name = "Cell.line", values=colors.Cell.line)
         
         + facet_wrap(~ Cell.line, scales="free")
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 0.7,
+                strip.text.x = element_text(size = 6),
+                axis.title.x = element_blank(),
+                plot.subtitle = element_text(size = 6, hjust=0.5),
+                axis.text.x=element_text(angle=45, vjust=1, hjust=1))
+  )
+}
+
+
+################################################################################
+# Figure 2D
+################################################################################
+
+plotViralLoadCRISPR <- function(data, title) {
+  #data <- data %>% filter(is.na(Outlier))
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Cell.line", "Time", "KO"), na.rm=FALSE, conf.interval=.95, removeOutliers=F, logt=T)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  p <- (ggplot(dfwc_between, aes(x=Time, 
+                                 y=logVL, 
+                                 group=interaction(Cell.line, KO),
+                                 color=Cell.line))
+        
+        + geom_errorbar(width=4, size=0.3,
+                        aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)))
+        + geom_line(aes(linetype = KO), size=0.5)
+        + geom_point(size=0.75)
+        
+        
+        + scale_x_continuous(name = "Hours post-infection", 
+                             breaks = c(4, 72),
+                             labels = c("4","72"),
+                             expand = c(0.25, 0))
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(3, 4, 5, 6),
+                             labels = c("1e3", "1e4", "1e5", "1e6"),
+                             limits = c(2.6, 6.3))
+        
+        + scale_color_manual(name = "Cell line", values=colors.Cell.line)
+        + scale_linetype_manual(name = "KO", values=c("ACE2" = "longdash", "WT" = "solid"))
+        
+        + ggtitle(title)
+        
+        + theme.basic
+        + theme(legend.position = "none")
+  )
+}
+
+################################################################################
+# CRISPR blocking antibody
+################################################################################
+
+plotCRISPRBlocking <- function(data, title, x.axis, y.axis) {
+  data$Condition <- factor(data$Condition, levels=c("Mock", "Anti-ACE2", "Anti-GFP"))
+  data$Cell.line <- factor(data$Cell.line, levels=c("H522", "H522 ACE2 KO", "Calu-3", "Calu-3 ACE2 KO"))
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition", "Cell.line"), na.rm=FALSE, conf.interval=.95)
+  
+  p <- (ggplot(data, aes(x=as.factor(Condition),
+                         y=log10(Copies),
+                         color=Cell.line,
+                         fill=Cell.line,
+                         facet=Cell.line))
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.5)
+        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
+        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
+        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white")
+        #+ geom_text(data = anno, aes(x = xstar,  y = ystar, label = lab), size=2, color=medium.grey, family = "Arial")
+        #+ geom_segment(data = anno, aes(x = x1, xend = x2, y = y2, yend = y2), colour=medium.grey)
+        
+        
+        + ggtitle(title)
+        
+        + scale_y_continuous(name = y.axis,
+                             breaks = c(2, 3, 4, 5, 6),
+                             labels = c("1e2", "1e3", "1e4", "1e5", "1e6"),
+                             limits = c(2,6))
+        
+        + scale_color_manual(name = "Cell.line", values=colors.Cell.line)
+        + scale_fill_manual(name = "Cell.line", values=colors.Cell.line)
+        
+        + facet_wrap(~ Cell.line, scales="free_x", nrow=1)
         
         + theme.basic
         + theme(legend.position = "none",
@@ -97,6 +192,7 @@ plotBlocking <- function(data, title, x.axis, y.axis) {
                 axis.text.x=element_text(angle=45, vjust=1, hjust=1))
   )
 }
+
 
 ################################################################################
 # Figure 2F
@@ -156,19 +252,27 @@ plotIncucyte <- function(data, doBreak=F) {
 ################################################################################
 # Figure 2
 p2a <- plotAB(data.neutralizing, "S neutralizing antibody", "2B04 (ug/mL)", "Viral RNA (%)")
-p2b <- plotAB(data.fc, "ACE2 Fc", "hACE2 Fc (ug/mL)", "Viral RNA (%)")
-p2c <- plotBlocking(data.blockingAB, "Blocking antibody", "3 days post-infection", "Copies / cell")
-p2f <- plotIncucyte(data.incucyte, doBreak=F)
+p2c <- plotAB(data.fc, "ACE2 Fc", "hACE2 Fc (ug/mL)", "Viral RNA (%)")
+p2d <- plotBlocking(data.blockingAB, "Blocking antibody", "3 days post-infection", "Viral RNA (copies/cell)")
+p2e <- plotViralLoadCRISPR(data.ace2.CRISPR, "Viral load in ACE2 CRISPR KO cells")
+p2f <- plotCRISPRBlocking(data.ace2.CRISPR.blockingAB, "Blocking antibody in ACE2 CRISPR KO cells", "3 days post-infection", "Viral RNA (copies/cell)")
+p2g <- plotIncucyte(data.incucyte, doBreak=F)
 
 F2.top.left <- arrangeGrob(
-  p2a, p2b, p2c,
-  nrow = 3,
+  p2a, p2c, p2d, p2f,
+  nrow = 4,
   ncol = 1)
 
+F2.e <- arrangeGrob(
+  p2e,
+  nrow = 1,
+  ncol = 2)
+
 F2.bottom <- arrangeGrob(
-  p2f,
+  p2g,
   nrow = 1,
   ncol = 1)
 
-saveFig(F2.top.left, "Figure2_top_left", 6, 3.7)
+saveFig(F2.e, "Figure2_E", 1.2, 3.7)
+saveFig(F2.top.left, "Figure2_top_left", 7, 3.7)
 saveFig(F2.bottom, "Figure2_bottom", 4.1, 6.85)

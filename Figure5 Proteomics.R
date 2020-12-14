@@ -217,7 +217,7 @@ plotCoVProfiles <- function(proteins, proteins.avg)
         
         + scale_color_manual(values=colors.SARS.proteins)
         
-        + scale_y_continuous(name = "log2(Intensity / 4h infected)", breaks = seq(0,6,1), limits=c(-0.4,6.3))
+        + scale_y_continuous(name = "log2(Intensity / 4hr Mock)", breaks = seq(0,6,1), limits=c(-0.4,6.3))
 
         + scale_x_continuous(name = "Hours post-infection", 
                              breaks = c(4, 12, 24, 48, 72, 96),
@@ -720,31 +720,13 @@ proteins.fc.mock <- (proteins %>%
                        mutate(Time = str_extract(Condition, "\\d+")))
 
 
-proteins.averaged.condition.fc.4hr <- (proteins.averaged.condition %>%
-                                          left_join(filter(., Condition == "4 hr"), by="Gene names", suffix=c("",".4hr")) %>%
-                                          mutate(FC = FC - FC.4hr) %>%
-                                          mutate(Condition = factor(Condition, levels=c("Mock - 4 hr", "4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "Mock - 96 hr"))) %>%
-                                          mutate(Mock = str_detect(Condition, "Mock")) %>%
-                                          mutate(Time = str_extract(Condition, "\\d+")))
-
-proteins.fc.4hr <- (proteins %>%
-                       pivot_longer(all_of(quant.colnames), names_to="Condition", values_to="FC") %>%
-                       mutate(Replicate = str_extract(Condition, "\\d+$")) %>%
-                       mutate(Condition = str_extract(Condition, ".*(?=( Rep ))")) %>%
-                       left_join(filter(., Condition == "4 hr"), by=c("Gene names", "Replicate"), suffix=c("",".4hr")) %>%
-                       mutate(FC = FC - FC.4hr) %>%
-                       mutate(Condition = factor(Condition, levels=c("Mock - 4 hr", "4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "Mock - 96 hr"))) %>%
-                       mutate(Mock = str_detect(Condition, "Mock")) %>%
-                       mutate(Time = str_extract(Condition, "\\d+")))
-
-
 ################################################################################
 # Generate figures
 ################################################################################
 figPCA <- plotPCA(normalized.data, design)
 figHeatmap <- plotHeatmap(proteins.z.scored, diff.proteins, design)
 figClusterProfiles <- plotClusterProfiles(diff.proteins.averaged.condition.fc.mock)
-figCOVProfiles <- plotCoVProfiles(proteins.fc.4hr, proteins.averaged.condition.fc.4hr)
+figCOVProfiles <- plotCoVProfiles(proteins.fc.mock, proteins.averaged.condition.fc.mock)
 figVolcano <- plotVolcano(proteins)
 figEnrichment <- plotEnrichment(proteins, diff.proteins, num.clusters)
 

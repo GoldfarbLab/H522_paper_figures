@@ -91,15 +91,16 @@ plotPCR.TMPRSS2 <- function(data, title) {
 ################################################################################
 # Figure 1A
 ################################################################################
-plotViralLoadCellLines <- function(data, title, min.y) {
-  dfwc_between <- summarySE(data=data, measurevar="Viral Load", groupvars=c("Cell.line", "Time"), na.rm=FALSE, conf.interval=.95)
+plotViralLoadCellLines <- function(data, title) {
+  dfwc_between <- summarySE(data=data, measurevar="Viral Load", groupvars=c("Cell.line", "Time", "MOI"), na.rm=FALSE, conf.interval=.95)
   dfwc_between$logVL <- log10(dfwc_between$`Viral Load`)
   dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
   
   p <- (ggplot(dfwc_between, aes(x=Time, 
                                  y=logVL, 
                                  group=Cell.line,
-                                 color=Cell.line))
+                                 color=Cell.line,
+                                 facet=MOI))
         
         + geom_errorbar(width=3, size=0.3,
                         aes(ymin=log10(`Viral Load` - se),
@@ -111,17 +112,21 @@ plotViralLoadCellLines <- function(data, title, min.y) {
         + scale_x_continuous(name = "Hours post-infection", 
                              breaks = c(4, 72),
                              labels = c("4","72"),
-                             expand = c(0.25, 0))
+                             expand = c(0.15, 0))
         + scale_y_continuous(name = "Viral RNA (copies/cell)",
-                             breaks = c(2, 3, 4, 5, 6, 7, 8),
-                             labels = c("1e2", "1e3", "1e4", "1e5", "1e6", "1e7", "1e8"),
-                             limits = c(min.y, 8))
+                             breaks = seq(1, 8),
+                             labels = paste("1e", seq(1, 8), sep=""),
+                             limits = c(1, 8))
         + scale_color_manual(name = "Cell line", values=colors.Cell.line)
+        
+        + facet_wrap(~ MOI, nrow=1)
         
         + ggtitle(title)
         
         + theme.basic
-        + theme(legend.position = "none")
+        + theme(legend.position = "none",
+                aspect.ratio = 1.3,
+                strip.text.x = element_text(size = 6))
   )
 }
 
@@ -259,7 +264,8 @@ p1b <- plotPCR.ACE2(ACE2.PCR, "ACE2 mRNA")
 p1b2 <- plotPCR.TMPRSS2(TMPRSS2.PCR, "TMPRSS2 mRNA")
 
 
-p1d <- plotViralLoadCellLines(Viral.load.cell.lines, "Viral load in cells - All lines", 2)
+p1d <- plotViralLoadCellLines(Viral.load.cell.lines, "Viral load in cells - All lines")
+#p1d2 <- plotViralLoadCellLines(Viral.load.cell.lines.low.MOI, "Viral load in cells - All lines", 1)
 p1e <- plotViralLoad(Viral.load.H522.EXP08.09)
 p1f <- plotViralLoadSups(Viral.load.insups.H522.EXP08.09)
 p1g <- plotFACS(FACS.H522.EXP08.09)

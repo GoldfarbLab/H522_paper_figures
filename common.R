@@ -3,6 +3,7 @@ library(RColorBrewer)
 library(circlize)
 library(egg)
 library(extrafont)
+library(outliers)
 #library(ggsignif)
 
 #font_import()
@@ -33,7 +34,9 @@ colors.Cell.line <- c("H522" = "#ff7f00",
                       "A427" = light.grey,
                       "H522-ACE2" = "#377eb8", #"#fdbf6f",#4daf4a
                       "PgsA" = medium.grey,
-                      "Calu-3" = "#4daf4a")  #"#377eb8"
+                      "Calu-3" = "#4daf4a",
+                      "Calu-3 ACE2 KO" = "#4daf4a",
+                      "H522 ACE2 KO" = "#ff7f00")  #"#377eb8"
 
 color.structural <-  "#1b9e77" #"#e41a1c"
 color.orf <- "#d95f02" #"#377eb8"
@@ -91,7 +94,9 @@ createDir <- function(path)
 ##   conf.interval: the percent range of the confidence interval (default is 95%)
 ################################################################################
 summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
-                      conf.interval=.95, .drop=TRUE) {
+                      conf.interval=.95, .drop=TRUE, removeOutliers=F, logt=F) {
+  
+  
   # New version of length which can handle NA's: if na.rm==T, don't count them
   length2 <- function (x, na.rm=FALSE) {
     if (na.rm) sum(!is.na(x))
@@ -102,6 +107,16 @@ summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
   # N, mean, and sd
   datac <- plyr::ddply(data, groupvars, .drop=.drop,
                        .fun = function(xx, col) {
+                         
+                         if (removeOutliers) {
+                           print('pre')
+                           print(xx[[col]])
+                           #xx[[col]] <- boxB(xx[[col]])
+                           print('post')
+                           #print(exp(rm.outlier(log(xx[[col]]), fill = FALSE, median = FALSE, opposite = FALSE)))
+                           print(scores(log(xx[[col]]), type="t", prob=0.90) )
+                           #print(xx[[col]][boxB(xx[[col]], method="resistant", logt=logt, k=2.5)[["outliers"]]])
+                         }
                          c(N    = length2(xx[[col]], na.rm=na.rm),
                            mean = mean   (xx[[col]], na.rm=na.rm),
                            sd   = sd     (xx[[col]], na.rm=na.rm)
