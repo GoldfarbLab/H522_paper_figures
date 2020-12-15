@@ -13,6 +13,7 @@ data.neutralizing <- read_csv(here("data/Figure2A_S_neutralizing.csv"))
 data.fc <- read_csv(here("data/Figure2B_ACE2_Fc.csv"))
 data.blockingAB <- read_csv(here("data/Figure2C_ACE2_blocking.csv"))
 data.ace2.CRISPR <- read_csv(here("data/Figure2D_ACE2_CRISPR_BULK.csv"))
+data.ace2.CRISPR.mono <- read_csv(here("data/ACE2_CRISPR_Monoclonals.csv"))
 data.ace2.CRISPR.blockingAB <- read_csv(here("data/Figure2_ACE2_CRISPR_blocking.csv"))
 data.incucyte <- read_csv(here("data/Figure2F_incucyte.csv"))
 
@@ -149,6 +150,46 @@ plotViralLoadCRISPR <- function(data, title) {
 }
 
 ################################################################################
+# Viral load CRISPR monoclonals
+################################################################################
+
+plotViralLoadCRISPRMono <- function(data, title) {
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Cell.line", "Time", "KO", "Clone"), na.rm=FALSE, conf.interval=.95, removeOutliers=F, logt=T)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  p <- (ggplot(dfwc_between, aes(x=Time, 
+                                 y=logVL, 
+                                 group=interaction(Clone, KO),
+                                 color=Cell.line))
+        
+        + geom_errorbar(width=4, size=0.3,
+                        aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)))
+        + geom_line(aes(linetype = KO), size=0.5)
+        + geom_point(size=0.75)
+        
+        
+        + scale_x_continuous(name = "Hours post-infection", 
+                             breaks = c(4, 72),
+                             labels = c("4","72"),
+                             expand = c(0.25, 0))
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(3, 4, 5, 6, 7),
+                             labels = c("1e3", "1e4", "1e5", "1e6", "1e7"),
+                             limits = c(2.5, 7.2))
+        
+        + scale_color_manual(name = "Cell line", values=colors.Cell.line)
+        + scale_linetype_manual(name = "KO", values=c("ACE2" = "longdash", "WT" = "solid", "Mixed" = "dotdash"))
+        
+        + ggtitle(title)
+        
+        + theme.basic
+        + theme(legend.position = "none")
+  )
+}
+
+################################################################################
 # CRISPR blocking antibody
 ################################################################################
 
@@ -254,9 +295,12 @@ plotIncucyte <- function(data, doBreak=F) {
 p2a <- plotAB(data.neutralizing, "S neutralizing antibody", "2B04 (ug/mL)", "Viral RNA (%)")
 p2c <- plotAB(data.fc, "ACE2 Fc", "hACE2 Fc (ug/mL)", "Viral RNA (%)")
 p2d <- plotBlocking(data.blockingAB, "Blocking antibody", "3 days post-infection", "Viral RNA (copies/cell)")
-p2e <- plotViralLoadCRISPR(data.ace2.CRISPR, "Viral load in ACE2 CRISPR KO cells")
+p2e <- plotViralLoadCRISPR(data.ace2.CRISPR, "ACE2 CRISPR KO cells")
+p2monoclonals <- plotViralLoadCRISPRMono(data.ace2.CRISPR.mono, "Monoclonal ACE2 CRISPR KO cells")
 p2f <- plotCRISPRBlocking(data.ace2.CRISPR.blockingAB, "Blocking antibody in ACE2 CRISPR KO cells", "3 days post-infection", "Viral RNA (copies/cell)")
 p2g <- plotIncucyte(data.incucyte, doBreak=F)
+
+print(p2monoclonals)
 
 F2.top.left <- arrangeGrob(
   p2a, p2c, p2d, p2f,
@@ -274,5 +318,6 @@ F2.bottom <- arrangeGrob(
   ncol = 1)
 
 saveFig(F2.e, "Figure2_E", 1.2, 3.7)
+saveFig(p2monoclonals, "Figure3_CRISPR_monoClonals", 1.2, 3.7)
 saveFig(F2.top.left, "Figure2_top_left", 7, 3.7)
 saveFig(F2.bottom, "Figure2_bottom", 4.1, 6.85)

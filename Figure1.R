@@ -252,7 +252,7 @@ TMPRSS2.PCR <- read_tsv(here("data/Figure1B_TMPRSS2_PCR.txt"))
 FACS.H522.EXP08.09 <- read_csv(here("data/FACS H522_EXP08 and EXP09.csv"))
 Viral.load.H522.EXP08.09 <- read_csv(here("data/Viral Load H522_EXP08 and EXP09.csv"))
 Viral.load.insups.H522.EXP08.09 <- read_csv(here("data/Viral Load-insups H522 EXP08 and EXP09.csv"))
-Viral.load.cell.lines <- read_csv(here("data/Viral Load-cell lines.csv"))
+Viral.load.cell.lines <- read_csv(here("data/Viral Load-cell lines - all HCC827.csv"))
 # Figure S1
 Viral.load.cell.lines.low.MOI <- read_csv(here("data/Viral Load-cell lines MOI 015.csv"))
 
