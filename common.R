@@ -4,11 +4,25 @@ library(circlize)
 library(egg)
 library(extrafont)
 library(outliers)
+library(scales)
 #library(ggsignif)
 
 #font_import()
 loadfonts()
 
+################################################################################
+# Proteomics parameters and thresholds
+################################################################################
+proteomics.stats.threshold = 0.05
+proteomics.log.stats.threshold = -log10(proteomics.stats.threshold)
+proteomics.log.fc.threshold = log2(1.3)
+proteomics.num.clusters = 7
+################################################################################
+
+
+################################################################################
+# Visualization
+################################################################################
 golden.ratio <- 1/1.618
 grey <- "#333333"
 medium.grey <- "#666666"
