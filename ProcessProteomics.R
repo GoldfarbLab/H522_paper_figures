@@ -358,7 +358,8 @@ corum.matches <- corum %>%
   select("ComplexName", "n", "num_subunits", "ratio", "cluster", 
          "subunits(Entrez IDs)", "Gene names", "SARS2 Interactor", 
          "is_unique_mutation", "Num cell surface evidence") %>%
-  mutate("Gene names" = getSYMBOL(as.character(`subunits(Entrez IDs)`), data='org.Hs.eg'))
+  mutate("Gene names" = getSYMBOL(as.character(`subunits(Entrez IDs)`), data='org.Hs.eg')) %>%
+  distinct()
 
 corum.not.matched <- corum.matches %>% filter(is.na(cluster)) %>%
   left_join(select(proteins, "First_GeneID", "is_unique_mutation"), by = c("subunits(Entrez IDs)" = "First_GeneID")) %>%
@@ -439,14 +440,7 @@ graph_edges <- biogrid %>%
   unique() %>%
   add_column(type = "BioGRID")
   
-# create node tibble for tidygraph
-graph_nodes <- tibble(id = unique(c(graph_edges$from, graph_edges$to)))
 
-
-graph <- tbl_graph(nodes = graph_nodes, edges = graph_edges, directed = F)
-
-  
-max_cliques(graph, min=4)
 
 
 

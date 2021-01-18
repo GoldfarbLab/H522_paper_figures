@@ -33,22 +33,101 @@ plotKD.efficiency <- function(data) {
 }
 
 plotISG.induction <- function(data) {
-  data <- data %>% filter(is.na(outlier))
-  data$siRNA <- factor(data$siRNA, levels=c("siScramble uninfected", "siScramble Infected",
-                                            "Mock Uninfected", "Mock Infected",
-                                            "siTLR3", "siTLR7", "siTLR8", "siTLR9",
-                                            "siMyD88", "siTRIF - TICAM", "siRIG-I_DDX58",
-                                            "siMDA5_IFIH1", "siLPG2_DHX58", "siMAVS"))
   
-  p <- (ggplot(data = data, aes(x=siRNA, y=abundance))
-        + geom_point(color = colors.Cell.line["H522"])
+  data$siRNA <- factor(data$siRNA, levels=c("siTLR3", "siTLR7", "siTLR8", "siTLR9",
+                                            "siMyD88", "siTRIF (TICAM)", "siRIG-I (DDX58)",
+                                            "siMDA5 (IFIH1)", "siLPG2 (DHX58)", "siMAVS"))
+  data$gene <- factor(data$gene, levels=c("ISG15", "IFIT1", "IFIT2", "MX1"))
+  
+  data <- data %>% filter(is.na(outlier))
+  
+  p <- (ggplot(data = data, aes(x=gene, y=log2(abundance)))
         
-        + facet_wrap(~ gene, ncol=1, scales="free")
+        + geom_hline(yintercept=0, linetype="dotted", color=light.grey)
+        
+        + geom_point(color = colors.Cell.line["H522"], size=0.75, shape=21, stroke = 0.4, fill="white")
+        + stat_summary(fun = "mean", size= 0.15, width=0.65, geom = "crossbar")
+        
+        + facet_wrap(~ siRNA, nrow=1, scales="free_x")
+        
+        + scale_y_continuous(name = "log2 (mRNA / NT infected)",
+                             breaks = c(-8,-6,-4,-2,0,2),
+                             #labels = c("-2", "0", "2", "4", "6", "8", "10"),
+                             limits = c(-9, 2.5))
 
         + theme.basic
         + theme(legend.position = "none",
-                aspect.ratio = 0.2,
-                strip.text.x = element_text(size = 6))
+                aspect.ratio = 1/golden.ratio,
+                strip.text.x = element_text(size = 6),
+                axis.title.x = element_blank(),
+                axis.text.x=element_text(angle=45, vjust=1, hjust=1))
+  )
+}
+
+plotsiRNA.ViralRNA <- function(data) {
+  
+  data$siRNA <- factor(data$siRNA, levels=c("NT uninfected", "NT infected",
+                                            "Mock uninfected", "Mock infected",
+                                            "siTLR3", "siTLR7", "siTLR8", "siTLR9",
+                                            "siMyD88", "siTRIF (TICAM)", "siRIG-I (DDX58)",
+                                            "siMDA5 (IFIH1)", "siLPG2 (DHX58)", "siMAVS"))
+  data$gene <- factor(data$gene, levels=c("ISG15", "IFIT1", "IFIT2", "MX1"))
+  
+  data <- data %>% filter(is.na(outlier))
+  
+  data$abundance <- log10(data$abundance)
+  data$abundance[which(is.infinite(data$abundance))] <- 0
+
+  p <- (ggplot(data = data, aes(x=siRNA, y=abundance))
+        + geom_point(color = colors.Cell.line["H522"], size=0.75, shape=21, stroke = 0.4, fill="white")
+        + stat_summary(fun = "mean", size=0.15, width=0.65, geom = "crossbar")
+        
+        + geom_hline(yintercept=0, linetype="dotted", color=light.grey)
+        
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(0,2,4,6,8),
+                             labels = c("1e0", "1e2", "1e4", "1e6", "1e8"),
+                             limits = c(0, 8))
+        
+        + ggtitle("Viral load after siRNA treatment")
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 0.3,
+                strip.text.x = element_text(size = 6),
+                axis.title.x = element_blank(),
+                axis.text.x=element_text(angle=45, vjust=1, hjust=1))
+  )
+}
+
+plotsiRNA.genes.control <- function(data) {
+  
+  data$siRNA <- factor(data$siRNA, levels=c("NT uninfected", "NT infected",
+                                            "Mock uninfected", "Mock infected"))
+  data$gene <- factor(data$gene, levels=c("ISG15", "IFIT1", "IFIT2", "MX1"))
+  
+  data <- data %>% filter(is.na(outlier))
+  
+  p <- (ggplot(data = data, aes(x=gene, y=log2(abundance)))
+        
+        + geom_hline(yintercept=0, linetype="dotted", color=light.grey)
+        
+        + geom_point(color = colors.Cell.line["H522"], size=0.75, shape=21, stroke = 0.4, fill="white")
+        + stat_summary(fun = "mean", size=0.16, width=0.65, geom = "crossbar")
+        
+        + facet_wrap(~ siRNA, nrow=1, scales="free_x")
+        
+        + scale_y_continuous(name = "log2 (mRNA / NT uninfected)",
+                             breaks = c(-2,0,2,4,6,8,10),
+                             labels = c("-2", "0", "2", "4", "6", "8", "10"),
+                             limits = c(-2, 11.1))
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 1/golden.ratio,
+                strip.text.x = element_text(size = 6),
+                axis.title.x = element_blank(),
+                axis.text.x=element_text(angle=45, vjust=1, hjust=1))
   )
 }
 ################################################################################
@@ -61,6 +140,8 @@ plotISG.induction <- function(data) {
 ################################################################################
 KD.efficiency <- read_csv(here("data/Figure 7/kd-efficiency.csv"))
 ISG.induction <- read_csv(here("data/Figure 7/ISG_induction.csv"))
+siRNA.viralRNA <- read_csv(here("data/Figure 7/siRNA_viralRNA.csv"))
+siRNA.genes.control <- read_csv(here("data/Figure 7/siRNA_genes_control.csv"))
 ################################################################################
 
 
@@ -70,7 +151,14 @@ ISG.induction <- read_csv(here("data/Figure 7/ISG_induction.csv"))
 ################################################################################
 panel.KD.efficiency <- plotKD.efficiency(KD.efficiency)
 panel.ISG.induction <- plotISG.induction(ISG.induction)
+panel.siRNA.viralRNA <- plotsiRNA.ViralRNA(siRNA.viralRNA)
+panel.siRNA.genes.control <- plotsiRNA.genes.control(siRNA.genes.control)
 
-print(panel.ISG.induction)
-#saveFig(panel.KD.efficiency, "FigureS4_A", 3, 5)
+
+#print(panel.siRNA.genes.control)
+
+saveFig(panel.siRNA.viralRNA, "Figure7Ci", 3, 3.6)
+saveFig(panel.siRNA.genes.control, "Figure7Cii", 3, 2.9)
+saveFig(panel.ISG.induction, "Figure7Ciii", 3, 6.85)
+saveFig(panel.KD.efficiency, "FigureS4_A", 3, 5)
 ################################################################################
