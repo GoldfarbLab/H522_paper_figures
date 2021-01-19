@@ -184,15 +184,18 @@ interferon.response.gamma <-  read_csv(here("annotations/interferon_response_gam
 interferon.regulation.type1 <-  read_csv(here("annotations/regulation_of_type_I_interferon_mediated_signaling_pathway.txt"))  %>% mutate(Interferon.TypeI = TRUE)
 interferon.regulation.type2.immune.response <-  read_csv(here("annotations/regulation_type_2_immune_response.txt"))  %>% mutate(Interferon.TypeII = TRUE)
 antigen.processing.presentation <- read_csv(here("annotations/antigen_processing_and_presentation.txt"))  %>% mutate(Interferon.Antigen.Processing = TRUE)
+interferon.any <- read_tsv(here("data_processed/diffproteinsNormedToBridge.txt"))  %>% select(`Gene names`, Interferon.Alpha,	Interferon.Beta,	Interferon.Gamma,	Interferon.TypeI,	Interferon.TypeII,	interferon.beta.production,	response.to.type1.interferon,	RIG.I,	type3.inteferon.production,	Inteferon_Response)
 
-proteins <- left_join(proteins, interferon.response.alpha, by=c("Gene names" = "GO_CELLULAR_RESPONSE_TO_INTERFERON_ALPHA"))
-proteins <- left_join(proteins, interferon.response.beta, by=c("Gene names" = "GO_CELLULAR_RESPONSE_TO_INTERFERON_BETA"))
-proteins <- left_join(proteins, interferon.response.gamma, by=c("Gene names" = "GO_RESPONSE_TO_INTERFERON_GAMMA"))
-proteins <- left_join(proteins, interferon.regulation.type1, by=c("Gene names" = "GO_REGULATION_OF_TYPE_I_INTERFERON_MEDIATED_SIGNALING_PATHWAY"))
-proteins <- left_join(proteins, interferon.regulation.type2.immune.response, by=c("Gene names" = "GO_REGULATION_OF_TYPE_2_IMMUNE_RESPONSE"))
-proteins <- left_join(proteins, antigen.processing.presentation, by=c("Gene names" = "GO_ANTIGEN_PROCESSING_AND_PRESENTATION"))
+#proteins <- left_join(proteins, interferon.response.alpha, by=c("Gene names" = "GO_CELLULAR_RESPONSE_TO_INTERFERON_ALPHA"))
+#proteins <- left_join(proteins, interferon.response.beta, by=c("Gene names" = "GO_CELLULAR_RESPONSE_TO_INTERFERON_BETA"))
+#proteins <- left_join(proteins, interferon.response.gamma, by=c("Gene names" = "GO_RESPONSE_TO_INTERFERON_GAMMA"))
+#proteins <- left_join(proteins, interferon.regulation.type1, by=c("Gene names" = "GO_REGULATION_OF_TYPE_I_INTERFERON_MEDIATED_SIGNALING_PATHWAY"))
+#proteins <- left_join(proteins, interferon.regulation.type2.immune.response, by=c("Gene names" = "GO_REGULATION_OF_TYPE_2_IMMUNE_RESPONSE"))
+#proteins <- left_join(proteins, antigen.processing.presentation, by=c("Gene names" = "GO_ANTIGEN_PROCESSING_AND_PRESENTATION"))
 
-proteins$Inteferon_Response <- proteins$Interferon.Alpha == TRUE | proteins$Interferon.Beta == TRUE | proteins$Interferon.Gamma == TRUE | proteins$Interferon.TypeI == TRUE | proteins$Interferon.TypeII == TRUE | proteins$Interferon.Antigen.Processing == TRUE
+#proteins$Inteferon_Response <- proteins$Interferon.Alpha == TRUE | proteins$Interferon.Beta == TRUE | proteins$Interferon.Gamma == TRUE | proteins$Interferon.TypeI == TRUE | proteins$Interferon.TypeII == TRUE | proteins$Interferon.Antigen.Processing == TRUE
+
+proteins <- left_join(proteins, interferon.any, by="Gene names")
 
 # is it mutated?
 proteins <- left_join(proteins, H522.mutations, by=c("Gene names" = "GeneName"))
@@ -357,7 +360,7 @@ corum.matches <- corum %>%
   filter((n > 1 & ratio >= 0.51 & num_subunits > 2)) %>%
   select("ComplexName", "n", "num_subunits", "ratio", "cluster", 
          "subunits(Entrez IDs)", "Gene names", "SARS2 Interactor", 
-         "is_unique_mutation", "Num cell surface evidence") %>%
+         "is_unique_mutation", "Num cell surface evidence", "Inteferon_Response") %>%
   mutate("Gene names" = getSYMBOL(as.character(`subunits(Entrez IDs)`), data='org.Hs.eg')) %>%
   distinct()
 
@@ -372,13 +375,16 @@ CoV2.proteins <- c("E","M","N","S",
                    str_c("Orf", c("3a", "3b", "6", "7a", "7b", "8", "9b", "10")))
 CoV2.proteins.not.diff <- CoV2.proteins[!CoV2.proteins %in% diff.proteins$`Gene names`]
 
-nodes <- select(diff.proteins, "Gene names", "First_GeneID", "SARS_CoV_2", "cluster", "is_unique_mutation", "Num cell surface evidence") %>% 
+nodes <- select(diff.proteins, "Gene names", "First_GeneID", "SARS_CoV_2", "cluster", "is_unique_mutation", "Num cell surface evidence", "Inteferon_Response") %>% 
   mutate(quantified=T)
 nodes <- rbind(nodes, tibble("Gene names" = CoV2.proteins.not.diff, "First_GeneID"=NA, "SARS_CoV_2"=T, 
-                             "cluster"=NA, "is_unique_mutation"=NA, "Num cell surface evidence"=NA, "quantified"=CoV2.proteins.not.diff %in% proteins$`Gene names`))
+                             "cluster"=NA, "is_unique_mutation"=NA, "Num cell surface evidence"=NA, 
+                             "quantified"=CoV2.proteins.not.diff %in% proteins$`Gene names`,
+                             "Inteferon_Response"=NA))
 nodes <- rbind(nodes, tibble("Gene names" = corum.not.matched$"Gene names", "First_GeneID"=corum.not.matched$"subunits(Entrez IDs)", 
                              "SARS_CoV_2"=F, "cluster"=NA, "is_unique_mutation"=corum.not.matched$"is_unique_mutation",
-                             "Num cell surface evidence"=NA, "quantified" = corum.not.matched$"subunits(Entrez IDs)" %in% proteins$First_GeneID) %>% distinct())
+                             "Num cell surface evidence"=NA, "quantified" = corum.not.matched$"subunits(Entrez IDs)" %in% proteins$First_GeneID, 
+                             "Inteferon_Response"=corum.not.matched$Inteferon_Response) %>% distinct())
 write_tsv(nodes, here("tables/networks/nodes.tsv"), na="")
 
 bg_get_key("Dennis","Goldfarb","d.goldfarb@wustl.edu","interactome")
@@ -441,7 +447,7 @@ graph_edges <- biogrid %>%
   add_column(type = "BioGRID")
   
 
-
+write_tsv(graph_edges, "tables/networks/edges.txt")
 
 
 
