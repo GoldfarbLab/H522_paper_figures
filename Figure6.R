@@ -45,6 +45,7 @@ plotPCA <- function(data, design)
         
         + theme.basic
         + theme(legend.position = c(0.9, 0.2), 
+                aspect.ratio = 0.75,
                 plot.subtitle = element_text(size=7, hjust = 0.5, face = "italic"))
   )
 }
@@ -214,7 +215,8 @@ plotCoVProfiles <- function(proteins, proteins.avg)
                              expand = c(0.05, 0))
         
         + theme.basic
-        + theme(legend.position = "none")
+        + theme(legend.position = "none",
+                aspect.ratio = 0.75)
   )
 }
 
@@ -261,7 +263,8 @@ plotVolcano <- function(proteins)
         + ggtitle("96 hpi vs 96 hr mock")
         
         + theme.basic
-        + theme(legend.position = "none")
+        + theme(legend.position = "none",
+                aspect.ratio = 0.75)
   )
 }
 
@@ -431,6 +434,102 @@ plotEnrichment <- function(proteins, diff.proteins, num.clusters)
   
   gb_heatmap = grid.grabExpr(draw(h), height=5, width=2.5)
 }
+
+plotCorrelation <- function(proteins.averaged.condition.fc.mock, limma_voom_deg_data, proteins)
+{
+  proteins.clust <- proteins %>% select(`Gene names`, cluster) %>% filter(!is.na(cluster)) %>% unique()
+  # format proteomics data
+  protein.abundance <- proteins.averaged.condition.fc.mock %>% 
+    filter(Condition %in% c("4 hr", "24 hr", "48 hr", "72 hr", "96 hr")) %>%
+    select(`Gene names`, Time, FC) %>%
+    spread(Time, FC)
+  # format proteomics data
+  rna <- limma_voom_deg_data %>% 
+    mutate(logFC = -1*logFC) %>%
+    filter(time %in% c(4, 24, 48, 72, 96)) %>%
+    select(`Gene names` = genes, time, logFC) %>%
+    spread(time, logFC)
+  
+  protein.rna <- inner_join(protein.abundance, rna, by="Gene names", suffix=c(".protein", ".rna"))
+  protein.rna <- protein.rna %>% left_join(proteins.clust, by="Gene names")
+  
+  for (i in 1:nrow(protein.rna)){
+    protein.rna$pcc[i] <- cor(t(protein.rna[i, 2:6]), t(protein.rna[i, 7:11]))
+  }
+  
+  hist.all <- hist(protein.rna$pcc, breaks=seq(-1,1,0.1), plot=F)
+  hist.diff <- hist((protein.rna %>% filter(!is.na(cluster)))$pcc, breaks=seq(-1,1,0.1), plot=F)
+  
+  hist.data <- tibble("count" = c(hist.all$counts, hist.diff$counts), 
+                      "pcc" = c(hist.all$mids, hist.diff$mids), 
+                      "class"=c(rep("All proteins", length(hist.all$mids)), 
+                                rep("Differentially expressed proteins", length(hist.diff$mids))
+                                )
+  )
+  
+  p <- (ggplot(hist.data, aes(x=pcc, y=count))
+        + geom_col(fill="#EEEEEE", color=grey, width=0.1, size=0.5)
+        
+        + facet_wrap(~ class, scales="free_y", ncol=1)
+        
+        #+ scale_x_continuous(limits=c(min.x - x.range/20, x.limit + x.range/20),
+        #                     breaks = seq(-3,6,1))
+        
+        + ylab("Count")
+        + xlab("Pearson's correlation coefficient")
+        
+        + ggtitle("RNA vs protein correlations")
+        
+        + theme.basic
+        + theme(aspect.ratio = 0.5,
+                plot.title = element_text(size = 7,
+                                          margin = margin(0.1, 0, 0.1, 0, "cm")),
+                strip.text.x = element_text(size = 6,
+                                            margin = margin(0.1, 0, 0.1, 0, "cm")))
+  )
+}
+
+plotCorrelationEnrichment <- function(proteins.averaged.condition.fc.mock, limma_voom_deg_data, proteins)
+{
+  proteins.clust <- proteins %>% select(`Gene names`, cluster, First_GeneID) %>% filter(!is.na(cluster)) %>% unique()
+  # format proteomics data
+  protein.abundance <- proteins.averaged.condition.fc.mock %>% 
+    filter(Condition %in% c("4 hr", "24 hr", "48 hr", "72 hr", "96 hr")) %>%
+    select(`Gene names`, Time, FC) %>%
+    spread(Time, FC)
+  # format proteomics data
+  rna <- limma_voom_deg_data %>% 
+    mutate(logFC = -1*logFC) %>%
+    filter(time %in% c(4, 24, 48, 72, 96)) %>%
+    select(`Gene names` = genes, time, logFC) %>%
+    spread(time, logFC)
+  
+  protein.rna <- inner_join(protein.abundance, rna, by="Gene names", suffix=c(".protein", ".rna"))
+   
+  protein.rna <- protein.rna %>% left_join(proteins.clust, by="Gene names") %>%
+    filter(!is.na(cluster))
+  
+  for (i in 1:nrow(protein.rna)){
+    protein.rna$pcc[i] <- cor(t(protein.rna[i, 2:6]), t(protein.rna[i, 7:11]))
+  }
+  
+  protein.rna <- arrange(protein.rna, -pcc)
+  
+  geneList <- protein.rna$pcc
+  names(geneList) <- as.character(protein.rna$First_GeneID)
+  
+  msig <- msigdbr(species = "Homo sapiens") %>% filter(gs_cat == "H" | (gs_cat == "C2" & gs_subcat == "CP:REACTOME") | (gs_cat == "C5" & gs_subcat %in% c("BP", "CC")))  %>% select(gs_name, entrez_gene)
+  
+  enriched <- GSEA(geneList, TERM2GENE=msig, verbose=FALSE)
+  
+  p1 <- gseaplot(enriched, geneSetID = 1, by = "runningScore", title = enriched$Description[1], base_size=6)
+  p2 <- gseaplot(enriched, geneSetID = 2, by = "runningScore", title = enriched$Description[2], base_size=6)
+  
+  arranged.enrich <- arrangeGrob(p1, p2,
+                             nrow = 2,
+                             ncol = 1)
+}
+
 ################################################################################
 
 
@@ -446,6 +545,7 @@ diff.proteins <- read_tsv(here("data_processed/diffProteins.txt"))
 proteins.averaged.condition.fc.mock <- read_tsv(here("data_processed/proteinsFCvsMockAveraged.txt"))
 diff.proteins.averaged.condition.fc.mock <- read_tsv(here("data_processed/diffProteinsFCvsMockAveraged.txt"))
 proteins.fc.mock <- read_tsv(here("data_processed/proteinsFCvsMock.txt"), guess_max = 70000)
+load(here("data/Figure 6/limma_voom_deg_data.RData"))
 ################################################################################
 
 
@@ -459,15 +559,18 @@ panel.clusterProfiles <- plotClusterProfiles(diff.proteins.averaged.condition.fc
 panel.COV2Profiles <- plotCoVProfiles(proteins.fc.mock, proteins.averaged.condition.fc.mock)
 panel.volcano <- plotVolcano(proteins)
 panel.enrichment <- plotEnrichment(proteins, diff.proteins, proteomics.num.clusters)
-
+panel.correlation <- plotCorrelation(proteins.averaged.condition.fc.mock, limma_voom_deg_data, proteins)
+panel.correlation.enrichment <- plotCorrelationEnrichment(proteins.averaged.condition.fc.mock, limma_voom_deg_data, proteins)
 
 arranged.QC <- arrangeGrob(panel.PCA, panel.COV2Profiles, panel.volcano,
                   nrow = 1,
                   ncol = 3)
 
 #grid.draw(F5.top)  # to view the plot
-saveFig(arranged.QC, "Figure6_ABC", 9, 6.85)
-saveFig(panel.heatmap, "Figure6_D", 3.5, 2.3)
-saveFig(panel.clusterProfiles, "Figure6_E", 6, 1.3)
-saveFig(panel.enrichment, "Figure6_F", 3.1, 2.5)
+saveFig(arranged.QC, "Figure6_BCD", 9, 5.7)
+saveFig(panel.heatmap, "Figure6_E", 3.5, 2.3)
+saveFig(panel.clusterProfiles, "Figure6_F", 6, 1.3)
+saveFig(panel.enrichment, "Figure6_G", 3.1, 2.5)
+saveFig(panel.correlation, "Figure6_H", 2.1, 2)
+saveFig(panel.correlation.enrichment, "Figure6_H2", 6.3, 5)
 ################################################################################
