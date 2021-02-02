@@ -2,22 +2,27 @@ library(matrixStats)
 library(methods)
 library(cluster)
 interferon.type1.rna <- read_csv(here("type_1_interferon.csv"))
+type3.interferon.production <- read_csv(here("go_type3_interferon_production.csv"))
+rig1.signaling.pathway <- read_csv(here("go_rig1_signaling_pathway.csv"))
+interferon.proteins.all <- rbind(interferon.type1.rna, type3.interferon.production, rig1.signaling.pathway)
 normalized.immune.heatmap.data.rna <- read_csv(here("RNANormalizedImmuneHeatmapData.csv"))
 rnadata <- read_tsv(here("uq_normalized_expr copy.txt"))
 
 #Subset RNAseq DATA to have: WASHU_VERO_AGM, SRA_CACO-2, SRA_CALU-3, and UNC ones and matching Gene Names with Interferon Type I 
 rnadata <- select(rnadata,"SYMBOL", "ENTREZID", "SRA_CACO2", "SRA_CALU3", starts_with("UNC"))
-cell.lines.type1 <- filter(rnadata, rnadata$ENTREZID %in% interferon.type1.rna$GeneID)
-cell.lines.type1 <- cell.lines.type1 %>% select(-ENTREZID) #%>% column_to_rownames(var="SYMBOL")
+cell.lines.type1 <- filter(rnadata, rnadata$ENTREZID %in% interferon.proteins.all$GeneID)
+cell.lines.type1 <- cell.lines.type1 %>% select(-ENTREZID) %>% column_to_rownames(var="SYMBOL")
 
 #filter out ones that don't change
 variance <- rowVars(as.matrix(cell.lines.type1))
-cell.lines.type1 <- cbind(cell.lines.type1, variance) %>% filter(variance >=.5)  #%>% select(-variance) 
+variance <- variance[variance > 0]
 
 #z-score cell lines
 cell.lines.type1.zscored <- t(scale(t(as.matrix(cell.lines.type1)), center=T, scale=T))
 cell.lines.type1.zscored[is.nan(cell.lines.type1.zscored)] <- NA
 cell.lines.type1.zscored <- na.omit(cell.lines.type1.zscored)
+
+cell.lines.type1.zscored <- cbind(cell.lines.type1.zscored, variance)  #%>% select(-variance) 
 
 #ANNOTATIONS select ones for annotations for ACE2, TMPRSS2, FURIN, CTSB, CTSL, NRP1 - unfinished
 #annotations.cell.lines.type1 <- rnadata[c("ACE2", "TMPRSS2", "FURIN", "CTSB", "CTSL", "NRP1"),]
@@ -25,16 +30,26 @@ covid.annotations <- c("ACE2", "TMPRSS2", "FURIN", "CTSB", "CTSL", "NRP1")
 annotations.cell.lines.type1<- filter(rnadata, SYMBOL %in% covid.annotations) %>%
   column_to_rownames(var="SYMBOL") %>% select(-ENTREZID)
 #turn it into a heatmap, not z scored tho 
-column.annotation <- HeatmapAnnotation(receptors = anno_simple(t(as.matrix(annotations.cell.lines.type1))),
+column.annotation <- HeatmapAnnotation("SarsCoV2 Receptors" = t(as.matrix(annotations.cell.lines.type1)),
                                        #name = column.annotation,
                                        which = 'col',
-                                       col = list(receptors = colorRamp2(seq(-3, 3, length=256), 
-                                                                         rev(colorRampPalette(brewer.pal(10, "RdBu"))(256)))),
-                                       annotation_width = unit(c(1, 4), 'cm'),
-                                       gap = unit(1, 'mm'))
+                                       col = list("SarsCoV2 Receptors" = colorRamp2(seq(min(annotations.cell.lines.type1), max(annotations.cell.lines.type1), length=256), 
+                                                                         colorRampPalette(brewer.pal(9, "RdPu")[1:5])(256))),
+                                      # annotation_width = unit(c(1, 4), 'cm'),
+                                       annotation_height = unit(1, 'cm'),
+                                       annotation_name_gp = gpar(fontsize = 7),
+                                       gap = unit(1, 'mm'),
+                                      #legend
+                                      #show_heatmap_legend = T,
+                                      annotation_legend_param = list(color_bar = "continuous",
+                                                                  title_gp = gpar(fontsize = 6),
+                                                                  labels_gp = gpar(fontsize = 6),
+                                                                  grid_width = unit(2,"mm")))
 
 #Subset Normalized Heatmap Data to be just Type1 as well 
-protein.data.type1 <- filter(normalized.immune.heatmap.data.rna, normalized.immune.heatmap.data.rna$First_GeneID %in% interferon.type1.rna$GeneID)
+protein.data.type1 <- filter(normalized.immune.heatmap.data.rna, 
+                             normalized.immune.heatmap.data.rna$First_GeneID %in% interferon.proteins.all$GeneID |
+                             normalized.immune.heatmap.data.rna$GeneNames %in% interferon.proteins.all$GeneNames )
 protein.data.type1 <- protein.data.type1 %>% column_to_rownames(var="GeneNames") %>% select(-First_GeneID) %>% 
   select("4 hr", "12 hr", "24 hr", "48 hr", "72 hr", "96 hr", "significant") 
 #heatmap.data.type1[is.na(heatmap.data.type1)] <- 0 
@@ -45,11 +60,13 @@ joined.heatmap.data <- full_join(as_tibble(cell.lines.type1.zscored, rownames = 
                                  as_tibble(protein.data.type1, rownames = "GeneNames"), 
                                  by = "GeneNames") %>% column_to_rownames("GeneNames")
 
-rnavariance <- as.integer(!is.na(joined.heatmap.data$variance)) 
-joined.heatmap.data$rnavariance <- rnavariance
-joined.heatmap.data <- select(joined.heatmap.data, -variance) %>% 
-  filter(joined.heatmap.data$significant == 1 | joined.heatmap.data$rnavariance == 1) %>%
-  select(-rnavariance, -significant)
+#rnavariance <- as.integer(!is.na(joined.heatmap.data$variance)) 
+#joined.heatmap.data$rnavariance <- rnavariance
+joined.heatmap.data <- joined.heatmap.data %>% 
+  filter(significant == 1 | variance >= .5) #%>%
+ 
+# select(-significant, -variance)
+
 
 #So now that they're the same size, split them back into sep tables to put in heatmap 
 heatmap.cell.line.data <- select(joined.heatmap.data, "SRA_CACO2", "SRA_CALU3", starts_with("UNC")) %>% as.matrix(.)
@@ -68,16 +85,19 @@ row.clusters <- hclust(dist(notna.cell.lines)) #row clustering
 #Make a heatmap of heatmap.data.type1 
 rna.heatmap.of.proteins <- Heatmap(heatmap.data.type1,
                                # labels
-                               column_title = paste("Type 1 Interferon Response Proteinsin H522\nn = ", nrow(heatmap.data.type1), sep=""),
+                               column_title = paste("Type 1 Interferon Response Proteins in H522"),
                                column_title_gp = gpar(fontsize=7),
                                show_row_names = T,
                                row_names_gp = gpar(fontsize = 7),
                                row_names_side = "right",
                                column_names_gp = gpar(fontsize = 7),
-                               name = "z-score",
-                               col = colorRamp2(seq(-3, 3, length=256), rev(colorRampPalette(brewer.pal(10, "RdBu"))(256))),
+                               column_names_side = "top",
+                               name = "Proteomics (z-scored)",
+                               col = colorRamp2(seq(min(heatmap.data.type1, na.rm = TRUE), max(heatmap.data.type1, na.rm = TRUE)-2, length=256), 
+                                                (colorRampPalette(brewer.pal(9, "Purples"))(256))),
+                               na_col = "#EEEEEE",
                                # legends
-                               show_heatmap_legend = F,
+                               show_heatmap_legend = T,
                                heatmap_legend_param = list(color_bar = "continuous",
                                                            title_gp = gpar(fontsize = 6),
                                                            labels_gp = gpar(fontsize = 6),
@@ -101,17 +121,19 @@ rna.heatmap.of.proteins <- Heatmap(heatmap.data.type1,
 #Make a heatmap of rnadata.type1 -- what should this look like? 
 rna.cell.line.heatmap<- Heatmap(heatmap.cell.line.data,
                                    # labels
-                                   column_title = paste("Type 1 Inferon Response Proteins\nn = ", nrow(cell.lines.type1), sep=""),
+                                   column_title = paste("Type 1 Inferon Response Proteins"),
                                    column_title_gp = gpar(fontsize=7),
                                    show_row_names = T,
                                    row_names_gp = gpar(fontsize = 6),
                                    row_names_side = "right",
                                    column_names_gp = gpar(fontsize = 7),
-                                   name = "z-score",
-                                   #na_col = grey,
-                                   #col = colorRamp2(seq(-3, 3, length=256), rev(colorRampPalette(brewer.pal(10, "RdBu"))(256))),
+                                   name = "RNA Seq",
+                                   na_col = "#EEEEEE",
+                                   col = colorRamp2(seq(-max(abs(heatmap.cell.line.data), na.rm = TRUE), 
+                                                       max(abs(heatmap.cell.line.data), na.rm = TRUE), length=256), 
+                                                    rev(colorRampPalette(brewer.pal(10, "RdBu"))(256))),
                                    # legends
-                                   show_heatmap_legend = F,
+                                   show_heatmap_legend = T,
                                    heatmap_legend_param = list(color_bar = "continuous",
                                                                title_gp = gpar(fontsize = 6),
                                                                labels_gp = gpar(fontsize = 6),
