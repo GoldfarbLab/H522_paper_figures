@@ -223,14 +223,15 @@ plotHeparanSulfate  <- function(data, title)
 
 ################################################################################
 plotNRP1Monoclones  <- function(data, title)
-  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Cell.line", "Time", "KO", "Clone"), na.rm=FALSE, conf.interval=.95, removeOutliers=F, logt=T)
+{
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Time", "KO", "Clone"), na.rm=FALSE, conf.interval=.95, removeOutliers=F, logt=T)
   dfwc_between$logVL <- log10(dfwc_between$Copies)
   dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
   
   p <- (ggplot(dfwc_between, aes(x=Time, 
                                  y=logVL, 
                                  group=interaction(Clone, KO),
-                                 color=Cell.line))
+                                 color=colors.Cell.line["H522"]))
         
         + geom_errorbar(width=7, size=0.3,
                         aes(ymin=log10(`Copies` - se),
@@ -248,8 +249,7 @@ plotNRP1Monoclones  <- function(data, title)
                              labels = c("1e3", "1e4", "1e5", "1e6", "1e7"),
                              limits = c(2.5, 7.2))
         
-        + scale_color_manual(name = "Cell line", values=colors.Cell.line)
-        + scale_linetype_manual(name = "KO", values=c("ACE2" = "longdash", "WT" = "solid", "Mixed" = "dotdash"))
+        + scale_linetype_manual(name = "KO", values=c("NRP1" = "longdash", "WT" = "solid"))
         
         + facet_grid(~ KO)
         
@@ -264,6 +264,73 @@ plotNRP1Monoclones  <- function(data, title)
 ################################################################################
 
 
+################################################################################
+plotSiRNA <- function(data, title) {
+  data$Condition <- factor(data$Condition, levels=c("NT-1 Infected", "NT-2 Infected", "NRP1-843", "NRP1-844", "AXL-845", "AXL-847"))
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition"), na.rm=FALSE, conf.interval=.95)
+  
+  p <- (ggplot(data, aes(x=as.factor(Condition),
+                         y=log10(Copies)))
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.5)
+        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
+        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75, color=colors.Cell.line["H522"])
+        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white", color=colors.Cell.line["H522"])
+        #+ geom_text(data = anno, aes(x = xstar,  y = ystar, label = lab), size=2, color=medium.grey, family = "Arial")
+        #+ geom_segment(data = anno, aes(x = x1, xend = x2, y = y2, yend = y2), colour=medium.grey)
+        
+        + ggtitle(title)
+        
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(2, 3, 4, 5, 6),
+                             labels = c("1e2", "1e3", "1e4", "1e5", "1e6"),
+                             limits = c(2,6))
+        
+        + scale_color_manual(name = "Cell.line", values=colors.Cell.line)
+        + scale_fill_manual(name = "Cell.line", values=colors.Cell.line)
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 0.4,
+                strip.text.x = element_text(size = 6),
+                axis.title.x = element_blank(),
+                plot.subtitle = element_text(size = 6, hjust=0.5),
+                axis.text.x=element_text(angle=45, vjust=1, hjust=1))
+  )
+}
+################################################################################
+
+################################################################################
+plotSiRNAEfficiency <- function(data) {
+  data$Gene <- factor(data$Gene, levels= c("Mock", "NS-1", "NS-2", "AXL-1", "AXL-2", "NRP1-1", "NRP1-2"))
+  
+  p <- (ggplot(data = data, aes(x=Gene, y=Expression, group=Gene))
+        + geom_jitter(size=1.0, shape=21, stroke = 0.4, width=0.1, fill="white", color=colors.Cell.line["H522"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar")
+        
+        + facet_wrap(~ Gene, scales="free", nrow=1)
+        
+        + scale_y_continuous(name = "Relative copies (siRNA / Mock)",
+                             breaks = seq(0,2,0.5),
+                             labels = c("0", "0.5", "1.0", "1.5", "2.0"),
+                             limits = c(-0.1,2.0))
+        
+        + facet_grid(~ Experiment, scales = "free")
+        
+        + ggtitle("siRNA knockdown efficiency")
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 1.3,
+                axis.title.x = element_blank(),
+                strip.text.x = element_text(size = 6),
+                axis.text.x=element_text(angle=45, vjust=1, hjust=1))
+  )
+}
+################################################################################
+
+
+
 
 ################################################################################
 # Read data
@@ -273,6 +340,7 @@ data.ace2.CRISPR <- read_csv(here("data/Figure 3/ACE2_CRISPR_BULK.csv"))
 data.ace2.CRISPR.mono <- read_csv(here("data/Figure 3/ACE2_CRISPR_Monoclonals.csv"))
 data.ace2.CRISPR.blockingAB <- read_csv(here("data/Figure 3/ACE2_CRISPR_blocking.csv"))
 data.NRP1.AXL.siRNA <- read_csv(here("data/Figure 3/AXL_NRP1_siRNA.csv"))
+data.NRP1.AXL.siRNA.efficiency <- read_csv(here("data/Figure 3/AXL_NRP1_siRNA_efficiency.csv"))
 data.NRP1.monoclones <- read_csv(here("data/Figure 3/NRP1_clones.csv"))
 data.heparan.sulfate <- read_csv(here("data/Figure 3/Heparan_sulfate.csv"))
 ################################################################################
@@ -286,22 +354,16 @@ panel.blockingAB <- plotBlocking(data.blockingAB, "Blocking antibody", "3 days p
 panel.ViralLoad.CRISPR.bulk <- plotViralLoadCRISPR(data.ace2.CRISPR, "ACE2 CRISPR KO cells")
 panel.ViralLoad.CRISPR.monoclonal <- plotViralLoadCRISPRMono(data.ace2.CRISPR.mono, "Monoclonal ACE2 CRISPR KO cells")
 panel.blockingAB.CRISPR <- plotCRISPRBlocking(data.ace2.CRISPR.blockingAB, "Blocking antibody in ACE2 CRISPR KO cells", "3 days post-infection", "Viral RNA (copies/cell)")
-#panel.NRP1.AXL.siRNA <- plotSiRNA()
+panel.NRP1.AXL.siRNA <- plotSiRNA(data.NRP1.AXL.siRNA, "Infection after siRNA in H522 cells")
 panel.NRP1.monoclones <- plotNRP1Monoclones(data.NRP1.monoclones, "Monoclonal NRP1 CRISPR KO cells")
 panel.heparan.sulfate <- plotHeparanSulfate(data.heparan.sulfate, "Growth media on H552 cells")
-
-arranged.blockingAB <- arrangeGrob(
-  panel.blockingAB, panel.blockingAB.CRISPR,
-  nrow = 2,
-  ncol = 1)
-
-arranged.alternative.receptors <- arrangeGrob(
-  panel.NRP1.monoclones, panel.heparan.sulfate,
-  nrow = 1,
-  ncol = 2)
+panel.NRP1.AXL.siRNA.efficiency <- plotSiRNAEfficiency(data.NRP1.AXL.siRNA.efficiency)
 
 saveFig(panel.ViralLoad.CRISPR.bulk, "Figure3_B", 1.2, 3.7)
 saveFig(panel.ViralLoad.CRISPR.monoclonal, "Figure3_D", 1.38, 3.7)
 saveFig(arranged.blockingAB, "Figure3_AC", 3.5, 3.7)
-saveFig(arranged.alternative.receptors, "Figure3_EFG", 1.2, 4.7)
+saveFig(panel.NRP1.AXL.siRNA, "Figure3_E", 1.41, 4.7)
+saveFig(panel.NRP1.monoclones, "Figure3_F", 1.33, 4.7)
+saveFig(panel.heparan.sulfate, "Figure3_G", 1.2, 4.7)
+saveFig(panel.NRP1.AXL.siRNA.efficiency, "FigureS3_C", 2, 4.7)
 ################################################################################
