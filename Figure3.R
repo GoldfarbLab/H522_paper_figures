@@ -183,6 +183,87 @@ plotCRISPRBlocking <- function(data, title, x.axis, y.axis) {
 ################################################################################
 
 
+################################################################################
+plotHeparanSulfate  <- function(data, title)
+{
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition", "Time"), na.rm=FALSE, conf.interval=.95, removeOutliers=F, logt=T)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  p <- (ggplot(dfwc_between, aes(x=Time, 
+                                 y=logVL, 
+                                 group=interaction(Condition),
+                                 color=Condition))
+        
+        + geom_errorbar(width=4, size=0.3,
+                        aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)))
+        + geom_line(size=0.5)
+        + geom_point(size=0.75)
+        
+        
+        + scale_x_continuous(name = "Hours post-infection", 
+                             breaks = c(4, 72),
+                             labels = c("4","72"),
+                             expand = c(0.25, 0))
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(3, 4, 5, 6, 7),
+                             labels = c("1e3", "1e4", "1e5", "1e6", "1e7"),
+                             limits = c(2.8, 7.5))
+        
+        + scale_color_manual(name = "Condition", values=colors.heparan)
+        
+        + ggtitle(title)
+        
+        + theme.basic
+        + theme(legend.position = "none")
+  )
+}
+################################################################################
+
+################################################################################
+plotNRP1Monoclones  <- function(data, title)
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Cell.line", "Time", "KO", "Clone"), na.rm=FALSE, conf.interval=.95, removeOutliers=F, logt=T)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  p <- (ggplot(dfwc_between, aes(x=Time, 
+                                 y=logVL, 
+                                 group=interaction(Clone, KO),
+                                 color=Cell.line))
+        
+        + geom_errorbar(width=7, size=0.3,
+                        aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)))
+        + geom_line(aes(linetype = KO), size=0.5)
+        + geom_point(size=0.75)
+        
+        
+        + scale_x_continuous(name = "Hours post-infection", 
+                             breaks = c(4, 72),
+                             labels = c("4","72"),
+                             expand = c(0.25, 0))
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(3, 4, 5, 6, 7),
+                             labels = c("1e3", "1e4", "1e5", "1e6", "1e7"),
+                             limits = c(2.5, 7.2))
+        
+        + scale_color_manual(name = "Cell line", values=colors.Cell.line)
+        + scale_linetype_manual(name = "KO", values=c("ACE2" = "longdash", "WT" = "solid", "Mixed" = "dotdash"))
+        
+        + facet_grid(~ KO)
+        
+        + ggtitle(title)
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                strip.text.x = element_text(size = 6),
+                aspect.ratio=0.8)
+  )
+}
+################################################################################
+
+
 
 ################################################################################
 # Read data
@@ -191,6 +272,9 @@ data.blockingAB <- read_csv(here("data/Figure 3/ACE2_blocking.csv"))
 data.ace2.CRISPR <- read_csv(here("data/Figure 3/ACE2_CRISPR_BULK.csv"))
 data.ace2.CRISPR.mono <- read_csv(here("data/Figure 3/ACE2_CRISPR_Monoclonals.csv"))
 data.ace2.CRISPR.blockingAB <- read_csv(here("data/Figure 3/ACE2_CRISPR_blocking.csv"))
+data.NRP1.AXL.siRNA <- read_csv(here("data/Figure 3/AXL_NRP1_siRNA.csv"))
+data.NRP1.monoclones <- read_csv(here("data/Figure 3/NRP1_clones.csv"))
+data.heparan.sulfate <- read_csv(here("data/Figure 3/Heparan_sulfate.csv"))
 ################################################################################
 
 
@@ -202,13 +286,22 @@ panel.blockingAB <- plotBlocking(data.blockingAB, "Blocking antibody", "3 days p
 panel.ViralLoad.CRISPR.bulk <- plotViralLoadCRISPR(data.ace2.CRISPR, "ACE2 CRISPR KO cells")
 panel.ViralLoad.CRISPR.monoclonal <- plotViralLoadCRISPRMono(data.ace2.CRISPR.mono, "Monoclonal ACE2 CRISPR KO cells")
 panel.blockingAB.CRISPR <- plotCRISPRBlocking(data.ace2.CRISPR.blockingAB, "Blocking antibody in ACE2 CRISPR KO cells", "3 days post-infection", "Viral RNA (copies/cell)")
+#panel.NRP1.AXL.siRNA <- plotSiRNA()
+panel.NRP1.monoclones <- plotNRP1Monoclones(data.NRP1.monoclones, "Monoclonal NRP1 CRISPR KO cells")
+panel.heparan.sulfate <- plotHeparanSulfate(data.heparan.sulfate, "Growth media on H552 cells")
 
 arranged.blockingAB <- arrangeGrob(
   panel.blockingAB, panel.blockingAB.CRISPR,
   nrow = 2,
   ncol = 1)
 
+arranged.alternative.receptors <- arrangeGrob(
+  panel.NRP1.monoclones, panel.heparan.sulfate,
+  nrow = 1,
+  ncol = 2)
+
 saveFig(panel.ViralLoad.CRISPR.bulk, "Figure3_B", 1.2, 3.7)
 saveFig(panel.ViralLoad.CRISPR.monoclonal, "Figure3_D", 1.38, 3.7)
 saveFig(arranged.blockingAB, "Figure3_AC", 3.5, 3.7)
+saveFig(arranged.alternative.receptors, "Figure3_EFG", 1.2, 4.7)
 ################################################################################

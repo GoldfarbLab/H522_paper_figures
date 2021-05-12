@@ -92,6 +92,64 @@ plotIncucyte <- function(data, doBreak=F) {
 }
 ################################################################################
 
+################################################################################
+plotMutantIncucyte <- function(data, doBreak=F) {
+  data <- data %>% filter(MOI == 20)
+  data$Cell.line <- factor(data$Cell.line, levels=c("WT", "E484D", "E484K/R685S"))
+  #data$Cells <- pmin(data$Cells, 100)
+  dfwc_between <- summarySE(data=data, measurevar="Cells", groupvars=c("MOI", "Time", "Cell.line"), na.rm=FALSE, conf.interval=.95)
+  
+  trans <- function(x){x}
+  yticks <- c(0, 25, 50, 75, 100)
+  
+  if (doBreak) {
+    trans <- function(x){pmin(x,0.75) + 0.01*pmax(x-0.75,0)}
+    yticks <- c(0, 0.25, 0.5, 0.75, 50, 75, 100)
+  }
+  
+  dfwc_between$se_up <- dfwc_between$Cells + dfwc_between$se
+  dfwc_between$se_low <- dfwc_between$Cells - dfwc_between$se
+  
+  dfwc_between$Cells_t <- trans(dfwc_between$Cells)
+  dfwc_between$se_up_t <- trans(dfwc_between$se_up)
+  dfwc_between$se_low_t <- trans(dfwc_between$se_low)
+  
+  p <- (ggplot(dfwc_between, aes(x=Time,
+                                 y=Cells_t,
+                                 fill=Cell.line,
+                                 color=Cell.line,
+                                 group=Cell.line))
+                                 #facet=Cell.line))
+        #+ geom_ribbon(aes(ymin=se_up_t, ymax=se_low_t),
+        #              fill=lightest.grey, 
+        #              color=lightest.grey)
+        
+        + geom_smooth(size=0.5, fill=light.grey)
+        
+        + scale_x_continuous(name = "Hours post-infection", 
+                             breaks = c(0, 12, 24, 36, 48, 60, 72, 84, 96),
+                             limits = c(0,97))
+        
+        + scale_y_continuous(name = "Normalized GFP intensity",
+                             breaks = c(0, 2e5, 4e5, 6e5, 8e5, 1e6),
+                             labels = c("0", "2e5", "4e5", "6e5", "8e5", "1e6"),
+                             limits = c(-1e5, 1.1e6))
+        
+        #+ scale_y_continuous(name = "GFP intensity / cell confluence", limits=c(0,NA), breaks=trans(yticks), labels=yticks)
+        
+        + scale_color_manual(name = "Cell line", values=colors.mutant.lines)
+        
+        #+ facet_wrap(Cell.line ~ ., scales = "free_x", ncol=1)
+        
+        + theme.basic
+        + theme(#legend.position = "none",
+          strip.background = element_blank(),
+          strip.text.x = element_blank(),
+          aspect.ratio=1/2)
+  )
+}
+################################################################################
+
 
 
 ################################################################################
@@ -100,6 +158,7 @@ plotIncucyte <- function(data, doBreak=F) {
 data.neutralizing <- read_csv(here("data/Figure 2/S_neutralizing.csv"))
 data.fc <- read_csv(here("data/Figure 2/ACE2_Fc.csv"))
 data.incucyte <- read_csv(here("data/Figure 2/incucyte.csv"))
+data.mutant.incucyte <- read_csv(here("data/Figure 2/mutant_incucyte.csv"))
 ################################################################################
 
 
@@ -111,6 +170,7 @@ panel.S.AB <- plotAB(data.neutralizing, "S neutralizing antibody", "2B04 (ug/mL)
 panel.ACE2.Fc <- plotAB(data.fc, "ACE2 Fc", "hACE2 Fc (ug/mL)", "Viral RNA (%)")
 # Execute this with doBreak=T to get y-axis break
 panel.incucyte <- plotIncucyte(data.incucyte, doBreak=F) 
+panel.mutant.incucyte <- plotMutantIncucyte(data.mutant.incucyte, doBreak=F) 
 
 arranged.AB.Fc <- arrangeGrob(
   panel.S.AB, panel.ACE2.Fc,
@@ -119,4 +179,5 @@ arranged.AB.Fc <- arrangeGrob(
 
 saveFig(arranged.AB.Fc, "Figure2_BC", 3, 3.7)
 saveFig(panel.incucyte, "Figure2_D", 4.1, 6.85)
+saveFig(panel.mutant.incucyte, "Figure2_G", 1.2, 6.85)
 ################################################################################

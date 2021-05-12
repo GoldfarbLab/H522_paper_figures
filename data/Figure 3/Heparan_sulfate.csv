@@ -1,0 +1,40 @@
+﻿Condition,Time,Copies
+RPMI,4,10119
+RPMI,4,1227
+RPMI,4,5465
+RPMI,4,13127
+RPMI,4,14258
+RPMI,72,5052644
+RPMI,72,3179528
+RPMI,72,736734
+RPMI,72,993390
+RPMI,72,29616589
+RPMI,72,27001189
+RPMI,72,28669479
+MEM control,4,10250
+MEM control,4,12486
+MEM control,4,2826
+MEM control,4,6815
+MEM control,4,9507
+MEM control,72,295314
+MEM control,72,384537
+MEM control,72,943086
+MEM control,72,31234
+MEM control,72,68178
+MEM control,72,42601
+MEM control,72,299628
+MEM control,72,287076
+MEM control,72,259723
+MEM - HS removed,4,1314
+MEM - HS removed,4,5584
+MEM - HS removed,4,796
+MEM - HS removed,4,1035
+MEM - HS removed,72,2678
+MEM - HS removed,72,4024
+MEM - HS removed,72,3492
+MEM - HS removed,72,924
+MEM - HS removed,72,275
+MEM - HS removed,72,598
+MEM - HS removed,72,1056
+MEM - HS removed,72,1693
+MEM - HS removed,72,1054

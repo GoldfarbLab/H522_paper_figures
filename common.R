@@ -33,8 +33,11 @@ COV2.color <- "#fb8072"
 
 colors.MOI <- brewer.pal(5, 'YlGnBu')[2:5]
 colors.MOI.6 <- brewer.pal(7, 'YlGnBu')[2:7]
+colors.mutant.lines<- brewer.pal(3, 'Dark2')
 
 colors.donors <- brewer.pal(5, 'Dark2')
+colors.heparan <- brewer.pal(3, 'Dark2')
+colors.NRP1.monoclonals <- brewer.pal(3, 'Dark2')
 
 colors.Cell.line <- c("H522" = "#ff7f00",
                       "Vero E6" = "#984ea3", 

@@ -445,7 +445,6 @@ plotCorrelation <- function(proteins.averaged.condition.fc.mock, limma_voom_deg_
     spread(Time, FC)
   # format proteomics data
   rna <- limma_voom_deg_data %>% 
-    mutate(logFC = -1*logFC) %>%
     filter(time %in% c(4, 24, 48, 72, 96)) %>%
     select(`Gene names` = genes, time, logFC) %>%
     spread(time, logFC)
@@ -499,7 +498,6 @@ plotCorrelationEnrichment <- function(proteins.averaged.condition.fc.mock, limma
     spread(Time, FC)
   # format proteomics data
   rna <- limma_voom_deg_data %>% 
-    mutate(logFC = -1*logFC) %>%
     filter(time %in% c(4, 24, 48, 72, 96)) %>%
     select(`Gene names` = genes, time, logFC) %>%
     spread(time, logFC)
@@ -520,7 +518,7 @@ plotCorrelationEnrichment <- function(proteins.averaged.condition.fc.mock, limma
   
   msig <- msigdbr(species = "Homo sapiens") %>% filter(gs_cat == "H" | (gs_cat == "C2" & gs_subcat == "CP:REACTOME") | (gs_cat == "C5" & gs_subcat %in% c("BP", "CC")))  %>% select(gs_name, entrez_gene)
   
-  enriched <- GSEA(geneList, TERM2GENE=msig, verbose=FALSE)
+  enriched <- GSEA(geneList, TERM2GENE=msig, verbose=FALSE, pvalueCutoff = 0.5)
   
   p1 <- gseaplot(enriched, geneSetID = 1, by = "runningScore", title = enriched$Description[1], base_size=6)
   p2 <- gseaplot(enriched, geneSetID = 2, by = "runningScore", title = enriched$Description[2], base_size=6)
@@ -545,7 +543,8 @@ diff.proteins <- read_tsv(here("data_processed/diffProteins.txt"))
 proteins.averaged.condition.fc.mock <- read_tsv(here("data_processed/proteinsFCvsMockAveraged.txt"))
 diff.proteins.averaged.condition.fc.mock <- read_tsv(here("data_processed/diffProteinsFCvsMockAveraged.txt"))
 proteins.fc.mock <- read_tsv(here("data_processed/proteinsFCvsMock.txt"), guess_max = 70000)
-load(here("data/Figure 6/limma_voom_deg_data.RData"))
+#load(here("data/Figure 6/limma_voom_deg_data.RData"))
+limma_voom_deg_data <- read_csv(here("data/Figure 6/RNA_DEG_table_1_1_26.csv"))
 ################################################################################
 
 
