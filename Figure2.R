@@ -151,6 +151,78 @@ plotMutantIncucyte <- function(data, doBreak=F) {
 ################################################################################
 
 
+################################################################################
+plotLentiMutants <- function(data) {
+  data$Condition <- factor(data$Condition, levels=c("WT", "E484D", "R682W", "E484D/R682W"))
+  dfwc_between <- summarySE(data=data, measurevar="GFP", groupvars=c("Condition"), na.rm=FALSE, conf.interval=.95)
+  
+  p <- (ggplot(data, aes(x=Condition,
+                         y=`GFP`))
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.75)
+        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
+        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75, color=colors.Cell.line["H522"])
+        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white", color=colors.Cell.line["H522"])
+        
+        
+        + ggtitle("Lenti Spike mutants in H522 cells")
+        
+        + scale_y_continuous(name = "% GFP positive")
+        
+        #+ scale_color_manual(name = "Condition", values=colors.Cell.line)
+        #+ scale_fill_manual(name = "Condition", values=colors.Cell.line)
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 0.7,
+                axis.title.x = element_blank(),
+                axis.text.x = element_text(size = 6))#, angle=45, vjust=1, hjust=1))
+  )
+}
+################################################################################
+
+
+################################################################################
+plot293TLentiMutants <- function(data) {
+  data$Condition <- factor(data$Condition, levels=c("WT", "E484D", "R682W", "E484D/R682W"))
+  dfwc_between <- summarySE(data=data, measurevar="GFP", groupvars=c("Condition", "Amount"), na.rm=FALSE, conf.interval=.95)
+  
+  p <- (ggplot(data, aes(x=as.factor(Amount),
+                         y=`GFP`))
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.75)
+        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
+        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.55, color=colors.Cell.line["H522"])
+        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white", color=colors.Cell.line["H522"])
+        
+        
+        + ggtitle("Lenti Spike mutants in 293T cells")
+        
+        + xlab("Volume (ul)")
+        + scale_y_continuous(name = "% GFP positive", limits=c(0,70))
+        
+        + facet_wrap(~ Condition, nrow=1, scales="free_x")
+        
+        #+ scale_color_manual(name = "Condition", values=colors.Cell.line)
+        #+ scale_fill_manual(name = "Condition", values=colors.Cell.line)
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 1.2,
+                strip.text.x = element_blank(), #element_text(size = 6),
+                #axis.title.x = element_blank(),
+                axis.text.x = element_text(size = 6))#, angle=45, vjust=1, hjust=1))
+  )
+}
+################################################################################
+
+
+
+
+
+
+
+
 
 ################################################################################
 # Read data
@@ -159,6 +231,8 @@ data.neutralizing <- read_csv(here("data/Figure 2/S_neutralizing.csv"))
 data.fc <- read_csv(here("data/Figure 2/ACE2_Fc.csv"))
 data.incucyte <- read_csv(here("data/Figure 2/incucyte.csv"))
 data.mutant.incucyte <- read_csv(here("data/Figure 2/mutant_incucyte.csv"))
+data.H522.lenti.mutants <- read_csv(here("data/Figure 2/H522_lenti_mutants.csv"))
+data.293T.lenti.mutants <- read_csv(here("data/Figure 2/293T_lenti_mutants.csv"))
 ################################################################################
 
 
@@ -171,6 +245,8 @@ panel.ACE2.Fc <- plotAB(data.fc, "ACE2 Fc", "hACE2 Fc (ug/mL)", "Viral RNA (%)")
 # Execute this with doBreak=T to get y-axis break
 panel.incucyte <- plotIncucyte(data.incucyte, doBreak=F) 
 panel.mutant.incucyte <- plotMutantIncucyte(data.mutant.incucyte, doBreak=F) 
+panel.H522.lenti.mutants <- plotLentiMutants(data.H522.lenti.mutants)
+panel.293T.lenti.mutants <- plot293TLentiMutants(data.293T.lenti.mutants)
 
 arranged.AB.Fc <- arrangeGrob(
   panel.S.AB, panel.ACE2.Fc,
@@ -179,5 +255,7 @@ arranged.AB.Fc <- arrangeGrob(
 
 saveFig(arranged.AB.Fc, "Figure2_BC", 3, 3.7)
 saveFig(panel.incucyte, "Figure2_D", 4.1, 6.85)
+saveFig(panel.H522.lenti.mutants, "Figure2_E", 1.1, 6.85)
+saveFig(panel.293T.lenti.mutants, "Figure2_F", 1.2, 6.85)
 saveFig(panel.mutant.incucyte, "Figure2_G", 1.2, 6.85)
 ################################################################################
