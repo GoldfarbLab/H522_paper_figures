@@ -302,6 +302,52 @@ plotH522TVSVMutants <- function(data) {
 
 
 
+################################################################################
+plotH522VirusStocks  <- function(data)
+{
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Time", "Condition"), na.rm=FALSE, conf.interval=.95, removeOutliers=F, logt=T)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  p <- (ggplot(dfwc_between, aes(x=Time, 
+                                 y=logVL, 
+                                 group=Condition,
+                                 color=colors.Cell.line["H522"]))
+        
+        + geom_errorbar(width=7, size=0.3,
+                        aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)))
+        + geom_line(aes(linetype = Condition), size=0.5)
+        + geom_point(size=0.75)
+        
+        
+        + scale_x_continuous(name = "Hours post-infection", 
+                             breaks = c(4, 96),
+                             labels = c("4","96"),
+                             expand = c(0.25, 0))
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(2, 3, 4, 5, 6),
+                             labels = c("1e2", "1e3", "1e4", "1e5", "1e6"),
+                             limits = c(2, 6))
+        
+        + scale_linetype_manual(name = "Condition", values=c("E484D" = "longdash", "WT" = "solid"))
+        
+        + ggtitle("Virus Stocks in H522 cells")
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                strip.text.x = element_text(size = 6),
+                aspect.ratio=golden.ratio)
+  )
+}
+################################################################################
+
+
+
+
+
+
+
 
 
 
@@ -316,6 +362,7 @@ data.H522.lenti.mutants <- read_csv(here("data/Figure 2/H522_lenti_mutants.csv")
 data.293T.lenti.mutants <- read_csv(here("data/Figure 2/293T_lenti_mutants.csv"))
 data.293T.ACE2.VSV <- read_csv(here("data/Figure 2/293-ACE2-VSV.csv"))
 data.H522.VSV <- read_csv(here("data/Figure 2/H522_VSV.csv"))
+data.H522.virus.stocks <- read_csv(here("data/Figure 2/H522_virus_stocks.csv"))
 ################################################################################
 
 
@@ -332,6 +379,7 @@ panel.H522.lenti.mutants <- plotLentiMutants(data.H522.lenti.mutants)
 panel.293T.lenti.mutants <- plot293TLentiMutants(data.293T.lenti.mutants)
 panel.293T.ACE2.VSV <- plot293TVSVMutants(data.293T.ACE2.VSV)
 panel.H522.VSV <- plotH522TVSVMutants(data.H522.VSV)
+panel.H522.virus.stocks <- plotH522VirusStocks(data.H522.virus.stocks)
 
 arranged.AB.Fc <- arrangeGrob(
   panel.S.AB, panel.ACE2.Fc,
@@ -345,4 +393,5 @@ saveFig(panel.293T.lenti.mutants, "Figure2_F", 1.2, 6.85)
 saveFig(panel.mutant.incucyte, "Figure2_G", 1.2, 6.85)
 saveFig(panel.293T.ACE2.VSV, "Figure2_H", 1.2, 6.85)
 saveFig(panel.H522.VSV, "Figure2_I", 1.2, 6.85)
+saveFig(panel.H522.virus.stocks, "Figure2_J", 1.2, 6.85)
 ################################################################################
