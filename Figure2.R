@@ -16,7 +16,10 @@ plotAB <- function(data, title, x.axis, y.axis) {
 
         #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.75)
         #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
-        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
+        + geom_errorbar(data=dfwc_between, aes(ymin = `Viral RNA` - se,
+                                               ymax = `Viral RNA` + se), width=0.33, size=0.3)
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.75, fill=lighter.grey, color=medium.grey)
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
         + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white")
         
 
@@ -159,9 +162,11 @@ plotLentiMutants <- function(data) {
   p <- (ggplot(data, aes(x=Condition,
                          y=`GFP`))
         
-        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.75)
-        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
-        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75, color=colors.Cell.line["H522"])
+        + geom_errorbar(data=dfwc_between, aes(ymin = GFP - se,
+                                               ymax = GFP + se), width=0.33, size=0.3, color=colors.Cell.line["H522"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.65, fill=lighter.grey, color=medium.grey)
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75, color=colors.Cell.line["H522"])
         + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white", color=colors.Cell.line["H522"])
         
         
@@ -190,10 +195,12 @@ plot293TLentiMutants <- function(data) {
   p <- (ggplot(data, aes(x=as.factor(Amount),
                          y=`GFP`))
         
-        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.75)
-        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
-        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.55, color=colors.Cell.line["H522"])
-        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white", color=colors.Cell.line["H522"])
+        + geom_errorbar(data=dfwc_between, aes(ymin = GFP - se,
+                                               ymax = GFP + se), width=0.33, size=0.3, color=colors.Cell.line["293T"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.6, fill=lighter.grey, color=medium.grey)
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.55, color=colors.Cell.line["H522"])
+        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white", color=colors.Cell.line["293T"])
         
         
         + ggtitle("Lenti Spike mutants in 293T cells")
@@ -217,7 +224,81 @@ plot293TLentiMutants <- function(data) {
 ################################################################################
 
 
+################################################################################
+plot293TVSVMutants <- function(data) {
+  data$Condition <- factor(data$Condition, levels=c("WT", "E484D", "E484K/R685S"))
+  dfwc_between <- summarySE(data=data, measurevar="Intensity", groupvars=c("Condition"), na.rm=FALSE, conf.interval=.95)
+  
+  p <- (ggplot(data, aes(x=Condition,
+                         y=Intensity))
+        
+        + geom_errorbar(data=dfwc_between, aes(ymin = Intensity - se,
+                                               ymax = Intensity + se), width=0.33, size=0.3, color=colors.Cell.line["293T"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.5, fill=lighter.grey, color=medium.grey)
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.55, color=colors.Cell.line["H522"])
+        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white", color=colors.Cell.line["293T"])
+        
+        
+        + ggtitle("VSV Spike mutants in 293T cells")
+        
+        + scale_y_continuous(name = "Relative infectivity", 
+                             breaks = seq(0,2,0.5),
+                             limits=c(0,2))
+       
+        
+        #+ scale_color_manual(name = "Condition", values=colors.Cell.line)
+        #+ scale_fill_manual(name = "Condition", values=colors.Cell.line)
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 0.7,
+                strip.text.x = element_blank(), #element_text(size = 6),
+                #axis.title.x = element_blank(),
+                axis.text.x = element_text(size = 6))#, angle=45, vjust=1, hjust=1))
+  )
+}
+################################################################################
 
+
+
+################################################################################
+plotH522TVSVMutants <- function(data) {
+  data$Condition <- factor(data$Condition, levels=c("WT", "E484D", "E484K/R685S"))
+  dfwc_between <- summarySE(data=data, measurevar="GFP", groupvars=c("Condition", "MOI"), na.rm=FALSE, conf.interval=.95)
+  
+  p <- (ggplot(data, aes(x=as.factor(MOI),
+                         y=GFP))
+        
+        + geom_errorbar(data=dfwc_between, aes(ymin = GFP - se,
+                                               ymax = GFP + se), width=0.33, size=0.3, color=colors.Cell.line["H522"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.75, fill=lighter.grey, color=medium.grey)
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.55, color=colors.Cell.line["H522"])
+        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.2, fill="white", color=colors.Cell.line["H522"])
+        
+        
+        + ggtitle("VSV-Spike mutants in H522 cells")
+        
+        + scale_y_continuous(name = "GFP+ cells (%)", 
+                             breaks = seq(0,6,2),
+                             limits=c(0,6))
+        + xlab("MOI")
+        
+        #+ scale_color_manual(name = "Condition", values=colors.Cell.line)
+        #+ scale_fill_manual(name = "Condition", values=colors.Cell.line)
+        
+        + facet_wrap(~ Condition, nrow=1)
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 1.0,
+                strip.text.x = element_blank(), #element_text(size = 6),
+                #axis.title.x = element_blank(),
+                axis.text.x = element_text(size = 6))#, angle=45, vjust=1, hjust=1))
+  )
+}
+################################################################################
 
 
 
@@ -233,6 +314,8 @@ data.incucyte <- read_csv(here("data/Figure 2/incucyte.csv"))
 data.mutant.incucyte <- read_csv(here("data/Figure 2/mutant_incucyte.csv"))
 data.H522.lenti.mutants <- read_csv(here("data/Figure 2/H522_lenti_mutants.csv"))
 data.293T.lenti.mutants <- read_csv(here("data/Figure 2/293T_lenti_mutants.csv"))
+data.293T.ACE2.VSV <- read_csv(here("data/Figure 2/293-ACE2-VSV.csv"))
+data.H522.VSV <- read_csv(here("data/Figure 2/H522_VSV.csv"))
 ################################################################################
 
 
@@ -247,6 +330,8 @@ panel.incucyte <- plotIncucyte(data.incucyte, doBreak=F)
 panel.mutant.incucyte <- plotMutantIncucyte(data.mutant.incucyte, doBreak=F) 
 panel.H522.lenti.mutants <- plotLentiMutants(data.H522.lenti.mutants)
 panel.293T.lenti.mutants <- plot293TLentiMutants(data.293T.lenti.mutants)
+panel.293T.ACE2.VSV <- plot293TVSVMutants(data.293T.ACE2.VSV)
+panel.H522.VSV <- plotH522TVSVMutants(data.H522.VSV)
 
 arranged.AB.Fc <- arrangeGrob(
   panel.S.AB, panel.ACE2.Fc,
@@ -258,4 +343,6 @@ saveFig(panel.incucyte, "Figure2_D", 4.1, 6.85)
 saveFig(panel.H522.lenti.mutants, "Figure2_E", 1.1, 6.85)
 saveFig(panel.293T.lenti.mutants, "Figure2_F", 1.2, 6.85)
 saveFig(panel.mutant.incucyte, "Figure2_G", 1.2, 6.85)
+saveFig(panel.293T.ACE2.VSV, "Figure2_H", 1.2, 6.85)
+saveFig(panel.H522.VSV, "Figure2_I", 1.2, 6.85)
 ################################################################################

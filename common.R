@@ -28,6 +28,7 @@ golden.ratio <- 1/1.618
 grey <- "#333333"
 medium.grey <- "#666666"
 light.grey <- "#AAAAAA"
+lighter.grey <- "#CCCCCC"
 lightest.grey <- "#DDDDDD"
 COV2.color <- "#fb8072"
 
@@ -54,7 +55,8 @@ colors.Cell.line <- c("H522" = "#ff7f00",
                       "PgsA" = medium.grey,
                       "Calu-3" = "#4daf4a",
                       "Calu-3 ACE2 KO" = "#4daf4a",
-                      "H522 ACE2 KO" = "#ff7f00")  #"#377eb8"
+                      "H522 ACE2 KO" = "#ff7f00",
+                      "293T" = "#a65628")  #"#377eb8"
 
 color.structural <-  "#1b9e77" #"#e41a1c"
 color.orf <- "#d95f02" #"#377eb8"
