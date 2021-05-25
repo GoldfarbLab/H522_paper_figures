@@ -97,7 +97,7 @@ plotIncucyte <- function(data, doBreak=F) {
 
 ################################################################################
 plotMutantIncucyte <- function(data, doBreak=F) {
-  data <- data %>% filter(MOI == 20)
+  data <- data %>% filter(MOI == 20, Time <= 48)
   data$Cell.line <- factor(data$Cell.line, levels=c("WT", "E484D", "E484K/R685S"))
   #data$Cells <- pmin(data$Cells, 100)
   dfwc_between <- summarySE(data=data, measurevar="Cells", groupvars=c("MOI", "Time", "Cell.line"), na.rm=FALSE, conf.interval=.95)
@@ -130,8 +130,8 @@ plotMutantIncucyte <- function(data, doBreak=F) {
         + geom_smooth(size=0.5, fill=light.grey)
         
         + scale_x_continuous(name = "Hours post-infection", 
-                             breaks = c(0, 12, 24, 36, 48, 60, 72, 84, 96),
-                             limits = c(0,97))
+                             breaks = c(0, 12, 24, 36, 48),
+                             limits = c(0,48))
         
         + scale_y_continuous(name = "Normalized GFP intensity",
                              breaks = c(0, 2e5, 4e5, 6e5, 8e5, 1e6),
@@ -148,7 +148,7 @@ plotMutantIncucyte <- function(data, doBreak=F) {
         + theme(#legend.position = "none",
           strip.background = element_blank(),
           strip.text.x = element_blank(),
-          aspect.ratio=1/2)
+          aspect.ratio=0.6)
   )
 }
 ################################################################################
@@ -342,8 +342,77 @@ plotH522VirusStocks  <- function(data)
 }
 ################################################################################
 
+################################################################################
+plotVeroNAB <- function(data) {
+  data$Condition <- factor(data$Condition, levels=c("Mock", "2B04", "2H04", "SARS2-02", "SARS2-38", 
+                                                    "SARS2-71", "SARS2-31", "SARS2-57", "SARS2-11"))
+  
+  
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition"), na.rm=FALSE, conf.interval=.95)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  p <- (ggplot(dfwc_between, aes(x=as.factor(Condition),
+                                 y=logVL))
+        
+        + geom_errorbar(aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)), width=0.33, size=0.3, color=colors.Cell.line["Vero E6"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.65, fill=lighter.grey, color=medium.grey)
+        
+        + geom_jitter(data=data, aes(y=log10(Copies)), size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white", color=colors.Cell.line["Vero E6"])
+        
+        + ggtitle("mAB neutralization in Vero E6 cells")
+        
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(0, 2, 4, 6, 8),
+                             labels = c("1e0", "1e2", "1e4", "1e6", "1e8"),
+                             limits = c(0, 8))
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 0.4,
+                strip.text.x = element_text(size = 6),
+                axis.title.x = element_blank(),
+                plot.subtitle = element_text(size = 6, hjust=0.5))
+  )
+}
+################################################################################
 
-
+################################################################################
+plotH522NAB <- function(data) {
+  data$Condition <- factor(data$Condition, levels=c("Mock", "2B04", "2H04", "SARS2-02", "SARS2-38", 
+                                                    "SARS2-71", "SARS2-31", "SARS2-57", "SARS2-11"))
+  
+  
+  dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition"), na.rm=FALSE, conf.interval=.95)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  p <- (ggplot(dfwc_between, aes(x=as.factor(Condition),
+                                 y=logVL))
+        
+        + geom_errorbar(aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)), width=0.33, size=0.3, color=colors.Cell.line["H522"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.65, fill=lighter.grey, color=medium.grey)
+        
+        + geom_jitter(data=data, aes(y=log10(Copies)), size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white", color=colors.Cell.line["H522"])
+        
+        + ggtitle("mAB neutralization in Vero E6 cells")
+        
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(0, 1, 2, 3, 4, 5),
+                             labels = c("1e0", "1e1", "1e2", "1e3", "1e4", "1e5"),
+                             limits = c(0, 5.4))
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 0.4,
+                strip.text.x = element_text(size = 6),
+                axis.title.x = element_blank(),
+                plot.subtitle = element_text(size = 6, hjust=0.5))
+  )
+}
+################################################################################
 
 
 
@@ -363,6 +432,8 @@ data.293T.lenti.mutants <- read_csv(here("data/Figure 2/293T_lenti_mutants.csv")
 data.293T.ACE2.VSV <- read_csv(here("data/Figure 2/293-ACE2-VSV.csv"))
 data.H522.VSV <- read_csv(here("data/Figure 2/H522_VSV.csv"))
 data.H522.virus.stocks <- read_csv(here("data/Figure 2/H522_virus_stocks.csv"))
+data.Vero.nAB <- read_csv(here("data/Figure 2/Vero_nAB.csv"))
+data.H522.nAB<- read_csv(here("data/Figure 2/H522_nAB.csv"))
 ################################################################################
 
 
@@ -380,18 +451,27 @@ panel.293T.lenti.mutants <- plot293TLentiMutants(data.293T.lenti.mutants)
 panel.293T.ACE2.VSV <- plot293TVSVMutants(data.293T.ACE2.VSV)
 panel.H522.VSV <- plotH522TVSVMutants(data.H522.VSV)
 panel.H522.virus.stocks <- plotH522VirusStocks(data.H522.virus.stocks)
+panel.Vero.nAB <- plotVeroNAB(data.Vero.nAB)
+panel.H522.nAB <- plotH522NAB(data.H522.nAB)
 
 arranged.AB.Fc <- arrangeGrob(
   panel.S.AB, panel.ACE2.Fc,
   nrow = 2,
   ncol = 1)
 
+arranged.nAB <- arrangeGrob(
+  panel.Vero.nAB,
+  panel.H522.nAB,
+  nrow=1,
+  ncol=2)
+
 saveFig(arranged.AB.Fc, "Figure2_BC", 3, 3.7)
 saveFig(panel.incucyte, "Figure2_D", 4.1, 6.85)
 saveFig(panel.H522.lenti.mutants, "Figure2_E", 1.1, 6.85)
 saveFig(panel.293T.lenti.mutants, "Figure2_F", 1.2, 6.85)
-saveFig(panel.mutant.incucyte, "Figure2_G", 1.2, 6.85)
+saveFig(panel.mutant.incucyte, "Figure2_G", 1.0, 6.85)
 saveFig(panel.293T.ACE2.VSV, "Figure2_H", 1.2, 6.85)
 saveFig(panel.H522.VSV, "Figure2_I", 1.2, 6.85)
 saveFig(panel.H522.virus.stocks, "Figure2_J", 1.2, 6.85)
+saveFig(arranged.nAB, "Figure2_KL", 1.15, 5.00)
 ################################################################################

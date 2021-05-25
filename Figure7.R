@@ -75,12 +75,18 @@ plotsiRNA.ViralRNA <- function(data) {
   
   data <- data %>% filter(is.na(outlier))
   
-  data$abundance <- log10(data$abundance)
-  data$abundance[which(is.infinite(data$abundance))] <- 0
+  dfwc_between <- summarySE(data=data, measurevar="abundance", groupvars=c("siRNA"), na.rm=FALSE, conf.interval=.95)
+  dfwc_between$logVL <- log10(dfwc_between$abundance)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  #data$abundance <- log10(data$abundance)
+  #data$abundance[which(is.infinite(data$abundance))] <- 0
 
-  p <- (ggplot(data = data, aes(x=siRNA, y=abundance))
-        + geom_point(color = colors.Cell.line["H522"], size=0.75, shape=21, stroke = 0.4, fill="white")
-        + stat_summary(fun = "mean", size=0.15, width=0.65, geom = "crossbar")
+  p <- (ggplot(data = dfwc_between, aes(x=siRNA, y=logVL))
+        + geom_errorbar(aes(ymin=log10(`abundance` - se),
+                            ymax=log10(`abundance` + se)), width=0.33, size=0.3, color=colors.Cell.line["H522"])
+        + stat_summary(fun = "mean", size=0.15, width=0.65, geom = "bar", fill=lighter.grey, color=medium.grey)
+        + geom_jitter(data=data, aes(y=log10(abundance)), size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white", color=colors.Cell.line["H522"])
         
         + geom_hline(yintercept=0, linetype="dotted", color=light.grey)
         

@@ -8,6 +8,8 @@ plotBlocking <- function(data, title, x.axis, y.axis) {
   data$Condition <- factor(data$Condition, levels=c("Mock", "Anti-ACE2", "Anti-DC SIGN", "Anti-GFP"))
   data$Cell.line <- factor(data$Cell.line, levels=c("PgsA", "H522", "Calu-3"))
   dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition", "Cell.line"), na.rm=FALSE, conf.interval=.95)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
   
   anno <- tibble(x1=c(1,1,1, 1,1,1),
                  x2=c(2,3,4, 2,3,4),
@@ -18,16 +20,20 @@ plotBlocking <- function(data, title, x.axis, y.axis) {
                  lab=c(rep("ns",3), "***", rep("ns",2)),
                  Cell.line=factor(c(rep("H522",3),rep("Calu-3",3)), levels=c("PgsA", "H522", "Calu-3")))
   
-  p <- (ggplot(data, aes(x=as.factor(Condition),
-                         y=log10(Copies),
+  p <- (ggplot(dfwc_between, aes(x=as.factor(Condition),
+                         y=logVL,
                          color=Cell.line,
                          fill=Cell.line,
                          facet=Cell.line))
         
+        + geom_errorbar(aes(ymin=log10(`Copies` - se),
+                                               ymax=log10(`Copies` + se)), width=0.33, size=0.3)
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.65, fill=lighter.grey, color=medium.grey)
+        
         #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.5)
         #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
-        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
-        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white")
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
+        + geom_jitter(data=data, aes(y=log10(Copies)), size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white")
         #+ geom_text(data = anno, aes(x = xstar,  y = ystar, label = lab), size=2, color=medium.grey, family = "Arial")
         #+ geom_segment(data = anno, aes(x = x1, xend = x2, y = y2, yend = y2), colour=medium.grey)
         
@@ -35,9 +41,9 @@ plotBlocking <- function(data, title, x.axis, y.axis) {
         + ggtitle(title)
         
         + scale_y_continuous(name = y.axis,
-                             breaks = c(0, 1, 2, 3, 4, 5, 6),
-                             labels = c("1e0", "1e1", "1e2", "1e3", "1e4", "1e5", "1e6"),
-                             limits = c(1,6))
+                             breaks = c(0, 2, 4, 6),
+                             labels = c("1e0", "1e2", "1e4", "1e6"),
+                             limits = c(0, 6))
         
         + scale_color_manual(name = "Cell.line", values=colors.Cell.line)
         + scale_fill_manual(name = "Cell.line", values=colors.Cell.line)
@@ -144,17 +150,23 @@ plotCRISPRBlocking <- function(data, title, x.axis, y.axis) {
   data$Condition <- factor(data$Condition, levels=c("Mock", "Anti-ACE2", "Anti-GFP"))
   data$Cell.line <- factor(data$Cell.line, levels=c("H522", "H522 ACE2 KO", "Calu-3", "Calu-3 ACE2 KO"))
   dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition", "Cell.line"), na.rm=FALSE, conf.interval=.95)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
   
-  p <- (ggplot(data, aes(x=as.factor(Condition),
-                         y=log10(Copies),
+  p <- (ggplot(dfwc_between, aes(x=as.factor(Condition),
+                         y=logVL,
                          color=Cell.line,
                          fill=Cell.line,
                          facet=Cell.line))
         
+        + geom_errorbar(aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)), width=0.33, size=0.3)
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.65, fill=lighter.grey, color=medium.grey)
+        
         #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.5)
         #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
-        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
-        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white")
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75)
+        + geom_jitter(data=data, aes(y=log10(Copies)), size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white")
         #+ geom_text(data = anno, aes(x = xstar,  y = ystar, label = lab), size=2, color=medium.grey, family = "Arial")
         #+ geom_segment(data = anno, aes(x = x1, xend = x2, y = y2, yend = y2), colour=medium.grey)
         
@@ -162,9 +174,9 @@ plotCRISPRBlocking <- function(data, title, x.axis, y.axis) {
         + ggtitle(title)
         
         + scale_y_continuous(name = y.axis,
-                             breaks = c(2, 3, 4, 5, 6),
-                             labels = c("1e2", "1e3", "1e4", "1e5", "1e6"),
-                             limits = c(2,6))
+                             breaks = c(0, 2, 4, 6),
+                             labels = c("1e0", "1e2", "1e4", "1e6"),
+                             limits = c(0,6))
         
         + scale_color_manual(name = "Cell.line", values=colors.Cell.line)
         + scale_fill_manual(name = "Cell.line", values=colors.Cell.line)
@@ -186,6 +198,7 @@ plotCRISPRBlocking <- function(data, title, x.axis, y.axis) {
 ################################################################################
 plotHeparanSulfate  <- function(data, title)
 {
+  data <- data %>% filter(Condition != "RPMI")
   dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition", "Time"), na.rm=FALSE, conf.interval=.95, removeOutliers=F, logt=T)
   dfwc_between$logVL <- log10(dfwc_between$Copies)
   dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
@@ -207,9 +220,9 @@ plotHeparanSulfate  <- function(data, title)
                              labels = c("4","72"),
                              expand = c(0.25, 0))
         + scale_y_continuous(name = "Viral RNA (copies/cell)",
-                             breaks = c(3, 4, 5, 6, 7),
-                             labels = c("1e3", "1e4", "1e5", "1e6", "1e7"),
-                             limits = c(2.8, 7.5))
+                             breaks = c(3, 4, 5, 6),
+                             labels = c("1e3", "1e4", "1e5", "1e6"),
+                             limits = c(2.8, 6))
         
         + scale_color_manual(name = "Condition", values=colors.heparan)
         
@@ -268,23 +281,29 @@ plotNRP1Monoclones  <- function(data, title)
 plotSiRNA <- function(data, title) {
   data$Condition <- factor(data$Condition, levels=c("NT-1 Infected", "NT-2 Infected", "NRP1-843", "NRP1-844", "AXL-845", "AXL-847"))
   dfwc_between <- summarySE(data=data, measurevar="Copies", groupvars=c("Condition"), na.rm=FALSE, conf.interval=.95)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
   
-  p <- (ggplot(data, aes(x=as.factor(Condition),
-                         y=log10(Copies)))
+  p <- (ggplot(dfwc_between, aes(x=as.factor(Condition),
+                         y=logVL))
+        
+        + geom_errorbar(aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)), width=0.33, size=0.3, color=colors.Cell.line["H522"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.65, fill=lighter.grey, color=medium.grey)
         
         #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.5)
         #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
-        + stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75, color=colors.Cell.line["H522"])
-        + geom_jitter(size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white", color=colors.Cell.line["H522"])
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75, color=colors.Cell.line["H522"])
+        + geom_jitter(data=data, aes(y=log10(Copies)), size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white", color=colors.Cell.line["H522"])
         #+ geom_text(data = anno, aes(x = xstar,  y = ystar, label = lab), size=2, color=medium.grey, family = "Arial")
         #+ geom_segment(data = anno, aes(x = x1, xend = x2, y = y2, yend = y2), colour=medium.grey)
         
         + ggtitle(title)
         
         + scale_y_continuous(name = "Viral RNA (copies/cell)",
-                             breaks = c(2, 3, 4, 5, 6),
-                             labels = c("1e2", "1e3", "1e4", "1e5", "1e6"),
-                             limits = c(2,6))
+                             breaks = c(0, 2, 4, 6),
+                             labels = c("1e0", "1e2", "1e4", "1e6"),
+                             limits = c(0,6))
         
         + scale_color_manual(name = "Cell.line", values=colors.Cell.line)
         + scale_fill_manual(name = "Cell.line", values=colors.Cell.line)
@@ -330,6 +349,49 @@ plotSiRNAEfficiency <- function(data) {
 ################################################################################
 
 
+################################################################################
+plotHeparinase <- function(data) {
+  data$Condition <- factor(data$Condition, levels=c("Control", "Heparinase I, II, III R&D", "Heparinase I, III Sigma"))
+  data.no.outliers <- data %>% filter(is.na(Outlier))
+  dfwc_between <- summarySE(data=data.no.outliers, measurevar="Copies", groupvars=c("Condition"), na.rm=FALSE, conf.interval=.95)
+  dfwc_between$logVL <- log10(dfwc_between$Copies)
+  dfwc_between$logVL[which(is.infinite(dfwc_between$logVL))] <- 0
+  
+  p <- (ggplot(dfwc_between, aes(x=as.factor(Condition),
+                                 y=logVL))
+        
+        + geom_errorbar(aes(ymin=log10(`Copies` - se),
+                            ymax=log10(`Copies` + se)), width=0.33, size=0.3, color=colors.Cell.line["H522"])
+        + stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.65, fill=lighter.grey, color=medium.grey)
+        
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "bar", width=0.5)
+        #+ geom_boxplot(width=0.65, outlier.shape=NA, size=0.4)
+        #+ stat_summary(fun = "mean", size= 0.15, geom = "crossbar", width=0.75, color=colors.Cell.line["H522"])
+        + geom_jitter(data=data, aes(y=log10(Copies)), size=0.75, shape=21, stroke = 0.4, width=0.25, fill="white", color=colors.Cell.line["H522"])
+        #+ geom_text(data = anno, aes(x = xstar,  y = ystar, label = lab), size=2, color=medium.grey, family = "Arial")
+        #+ geom_segment(data = anno, aes(x = x1, xend = x2, y = y2, yend = y2), colour=medium.grey)
+        
+        + ggtitle("Heparinase treatment in H522 cells")
+        
+        + scale_y_continuous(name = "Viral RNA (copies/cell)",
+                             breaks = c(0, 2, 4, 6),
+                             labels = c("1e0", "1e2", "1e4", "1e6"),
+                             limits = c(0,6))
+        
+        + scale_color_manual(name = "Cell.line", values=colors.Cell.line)
+        + scale_fill_manual(name = "Cell.line", values=colors.Cell.line)
+        
+        + theme.basic
+        + theme(legend.position = "none",
+                aspect.ratio = 0.85,
+                strip.text.x = element_text(size = 6),
+                axis.title.x = element_blank(),
+                plot.subtitle = element_text(size = 6, hjust=0.5))#,
+                #axis.text.x=element_text(angle=45, vjust=1, hjust=1))
+  )
+}
+################################################################################
+
 
 
 ################################################################################
@@ -343,6 +405,7 @@ data.NRP1.AXL.siRNA <- read_csv(here("data/Figure 3/AXL_NRP1_siRNA.csv"))
 data.NRP1.AXL.siRNA.efficiency <- read_csv(here("data/Figure 3/AXL_NRP1_siRNA_efficiency.csv"))
 data.NRP1.monoclones <- read_csv(here("data/Figure 3/NRP1_clones.csv"))
 data.heparan.sulfate <- read_csv(here("data/Figure 3/Heparan_sulfate.csv"))
+data.heparinase <- read_csv(here("data/Figure 3/Heparinase.csv"))
 ################################################################################
 
 
@@ -358,6 +421,12 @@ panel.NRP1.AXL.siRNA <- plotSiRNA(data.NRP1.AXL.siRNA, "Infection after siRNA in
 panel.NRP1.monoclones <- plotNRP1Monoclones(data.NRP1.monoclones, "Monoclonal NRP1 CRISPR KO cells")
 panel.heparan.sulfate <- plotHeparanSulfate(data.heparan.sulfate, "Growth media on H552 cells")
 panel.NRP1.AXL.siRNA.efficiency <- plotSiRNAEfficiency(data.NRP1.AXL.siRNA.efficiency)
+panel.heparinase <- plotHeparinase(data.heparinase)
+
+arranged.blockingAB <- arrangeGrob(
+  panel.blockingAB, panel.blockingAB.CRISPR,
+  nrow = 2,
+  ncol = 1)
 
 saveFig(panel.ViralLoad.CRISPR.bulk, "Figure3_B", 1.2, 3.7)
 saveFig(panel.ViralLoad.CRISPR.monoclonal, "Figure3_D", 1.38, 3.7)
@@ -366,4 +435,5 @@ saveFig(panel.NRP1.AXL.siRNA, "Figure3_E", 1.41, 4.7)
 saveFig(panel.NRP1.monoclones, "Figure3_F", 1.33, 4.7)
 saveFig(panel.heparan.sulfate, "Figure3_G", 1.2, 4.7)
 saveFig(panel.NRP1.AXL.siRNA.efficiency, "FigureS3_C", 2, 4.7)
+saveFig(panel.heparinase, "Figure3_H", 1.055, 4.7)
 ################################################################################
